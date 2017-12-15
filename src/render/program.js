@@ -6,10 +6,16 @@ const assert = require('assert');
 const {ProgramConfiguration} = require('../data/program_configuration');
 const VertexArrayObject = require('./vertex_array_object');
 const Context = require('../gl/context');
+const util = require('../util/util');
 
 import type {SegmentVector} from '../data/segment';
 import type VertexBuffer from '../gl/vertex_buffer';
 import type IndexBuffer from '../gl/index_buffer';
+import type DepthMode from '../gl/depth_mode';
+import type StencilMode from '../gl/stencil_mode';
+import type ColorMode from '../gl/color_mode';
+import type {PossiblyEvaluated, PossiblyEvaluatedPropertyValue} from '../style/properties';
+import type Uniforms from './uniform_binding';
 
 export type DrawMode =
     | $PropertyType<WebGLRenderingContext, 'LINES'>
@@ -20,11 +26,13 @@ class Program {
     uniforms: {[string]: WebGLUniformLocation};
     attributes: {[string]: number};
     numAttributes: number;
+    boundUniforms: any; // Uniforms;
 
     constructor(context: Context,
                 source: {fragmentSource: string, vertexSource: string},
                 configuration: ProgramConfiguration,
-                showOverdrawInspector: boolean) {
+                showOverdrawInspector: boolean,
+                staticUniformBindings: any   /* TODO */) {
         const gl = context.gl;
         this.program = gl.createProgram();
 
@@ -80,6 +88,12 @@ class Program {
                 this.uniforms[uniform.name] = gl.getUniformLocation(this.program, uniform.name);
             }
         }
+
+        // TODO Eventually we will no longer have to store the intermediary location after this, and instead just construct uniform bindings directly
+        this.boundUniforms = {};
+        if (staticUniformBindings) {      // TODO should delete this if statement eventually when uniformBindings are required
+            this.boundUniforms = staticUniformBindings(context, configuration.binders);
+        }
     }
 
     draw(context: Context,
@@ -93,6 +107,59 @@ class Program {
          dynamicLayoutBuffer2: ?VertexBuffer) {
 
         const gl = context.gl;
+
+        const primitiveSize = {
+            [gl.LINES]: 2,
+            [gl.TRIANGLES]: 3
+        }[drawMode];
+
+        for (const segment of segments.get()) {
+            const vaos = segment.vaos || (segment.vaos = {});
+            const vao: VertexArrayObject = vaos[layerID] || (vaos[layerID] = new VertexArrayObject());
+
+            vao.bind(
+                context,
+                this,
+                layoutVertexBuffer,
+                configuration ? configuration.getPaintVertexBuffers() : [],
+                indexBuffer,
+                segment.vertexOffset,
+                dynamicLayoutBuffer,
+                dynamicLayoutBuffer2
+            );
+
+            gl.drawElements(
+                drawMode,
+                segment.primitiveLength * primitiveSize,
+                gl.UNSIGNED_SHORT,
+                segment.primitiveOffset * primitiveSize * 2);
+        }
+    }
+
+    _draw(context: Context,
+         drawMode: DrawMode,
+         depthMode: /*DepthMode*/any,
+         stencilMode: /*StencilMode*/any,
+         colorMode: /*ColorMode*/any,       // TODO sth wrong with these
+         // uniform values
+         layerID: string,
+         layoutVertexBuffer: VertexBuffer,
+         indexBuffer: IndexBuffer,
+         segments: SegmentVector,
+         // paint prop binders, ?? or just use from ProgramConfiguration
+         currentProperties: any, //PossiblyEvaluated<Properties>,
+         zoom: number,
+         configuration: ?ProgramConfiguration,
+         dynamicLayoutBuffer: ?VertexBuffer,
+         dynamicLayoutBuffer2: ?VertexBuffer) {
+
+        const gl = context.gl;
+
+        context.setDepthMode(depthMode);
+        context.setStencilMode(stencilMode);
+        context.setColorMode(colorMode);
+
+        // const uniforms = configuration.getUniforms(currentProperties, {zoom: zoom});    // TODO: concat w uniformValues
 
         const primitiveSize = {
             [gl.LINES]: 2,

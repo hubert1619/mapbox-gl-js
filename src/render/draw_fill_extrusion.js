@@ -4,11 +4,14 @@ const glMatrix = require('@mapbox/gl-matrix');
 const pattern = require('./pattern');
 const Texture = require('./texture');
 const Color = require('../style-spec/util/color');
+const util = require('../util/util');
 const DepthMode = require('../gl/depth_mode');
 const mat3 = glMatrix.mat3;
 const mat4 = glMatrix.mat4;
 const vec3 = glMatrix.vec3;
 const StencilMode = require('../gl/stencil_mode');
+
+const {fillExtrusionUniforms, fillExtrusionPatternUniforms, extrusionTextureUniforms} = require('./program/fill_extrusion_program');
 
 import type Painter from './painter';
 import type SourceCache from '../source/source_cache';
@@ -32,7 +35,11 @@ function draw(painter: Painter, source: SourceCache, layer: FillExtrusionStyleLa
             const bucket: ?FillExtrusionBucket = (tile.getBucket(layer): any);
             if (!bucket) continue;
 
-            drawExtrusion(painter, source, layer, tile, coord, bucket, first);
+            const depthMode = new DepthMode(painter.context.gl.LEQUAL, DepthMode.ReadWrite, [0, 1]),
+                stencilMode = StencilMode.disabled,
+                colorMode = painter.colorModeForRenderPass();
+
+            drawExtrusion(painter, source, layer, tile, coord, bucket, first, depthMode, stencilMode, colorMode);
             first = false;
         }
     } else if (painter.renderPass === 'translucent') {
@@ -67,10 +74,6 @@ function drawToExtrusionFramebuffer(painter, layer) {
     }
 
     context.clear({ color: Color.transparent });
-
-    context.setStencilMode(StencilMode.disabled);
-    context.setDepthMode(new DepthMode(gl.LEQUAL, DepthMode.ReadWrite, [0, 1]));
-    context.setColorMode(painter.colorModeForRenderPass());
 }
 
 function drawExtrusionTexture(painter, layer) {
@@ -79,7 +82,7 @@ function drawExtrusionTexture(painter, layer) {
 
     const context = painter.context;
     const gl = context.gl;
-    const program = painter.useProgram('extrusionTexture');
+    const program = painter.useProgram('extrusionTexture', undefined, extrusionTextureUniforms);
 
     context.setStencilMode(StencilMode.disabled);
     context.setDepthMode(DepthMode.disabled);
@@ -88,74 +91,88 @@ function drawExtrusionTexture(painter, layer) {
     context.activeTexture.set(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, renderedTexture.colorAttachment.get());
 
-    gl.uniform1f(program.uniforms.u_opacity, layer.paint.get('fill-extrusion-opacity'));
-    gl.uniform1i(program.uniforms.u_image, 0);
-
     const matrix = mat4.create();
     mat4.ortho(matrix, 0, painter.width, painter.height, 0, 0, 1);
-    gl.uniformMatrix4fv(program.uniforms.u_matrix, false, matrix);
 
-    gl.uniform2f(program.uniforms.u_world, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    program.boundUniforms.set(program.uniforms, {
+        u_opacity: layer.paint.get('fill-extrusion-opacity'),
+        u_image: 0,
+        u_matrix: matrix,
+        u_world: [gl.drawingBufferWidth, gl.drawingBufferHeight]
+    });
 
     painter.viewportVAO.bind(context, program, painter.viewportBuffer, []);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-function drawExtrusion(painter, source, layer, tile, coord, bucket, first) {
+function drawExtrusion(painter, source, layer, tile, coord, bucket, first, depthMode, stencilMode, colorMode) {
     const context = painter.context;
     const gl = context.gl;
 
     const image = layer.paint.get('fill-extrusion-pattern');
+    if (image && pattern.isPatternMissing(image, painter)) return;
 
     const prevProgram = painter.context.program.get();
     const programConfiguration = bucket.programConfigurations.get(layer.id);
-    const program = painter.useProgram(image ? 'fillExtrusionPattern' : 'fillExtrusion', programConfiguration);
+
+    const program = painter.useProgram(image ? 'fillExtrusionPattern' : 'fillExtrusion',
+        programConfiguration, image ? fillExtrusionPatternUniforms : fillExtrusionUniforms);
     if (first || program.program !== prevProgram) {
         programConfiguration.setUniforms(context, program, layer.paint, {zoom: painter.transform.zoom});
     }
 
-    if (image) {
-        if (pattern.isPatternMissing(image, painter)) return;
-        pattern.prepare(image, painter, program);
-        pattern.setTile(tile, painter, program);
-        gl.uniform1f(program.uniforms.u_height_factor, -Math.pow(2, coord.overscaledZ) / tile.tileSize / 8);
-    }
+    // constructing a program should now also
+        // * initialize all static uniform bindings
+        // * bind all non-static uniform bindings (from programConfiguration)
 
-    painter.context.gl.uniformMatrix4fv(program.uniforms.u_matrix, false, painter.translatePosMatrix(
-        coord.posMatrix,
-        tile,
-        layer.paint.get('fill-extrusion-translate'),
-        layer.paint.get('fill-extrusion-translate-anchor')
-    ));
+    // draw calls should now
+        // * set all static uniforms
+        // * set all non-static uniforms
 
-    setLight(program, painter);
-
-    program.draw(
-        context,
-        gl.TRIANGLES,
-        layer.id,
-        bucket.layoutVertexBuffer,
-        bucket.indexBuffer,
-        bucket.segments,
-        programConfiguration);
-}
-
-function setLight(program, painter) {
-    const gl = painter.context.gl;
     const light = painter.style.light;
 
     const _lp = light.properties.get('position');
     const lightPos = [_lp.x, _lp.y, _lp.z];
-
     const lightMat = mat3.create();
     if (light.properties.get('anchor') === 'viewport') {
         mat3.fromRotation(lightMat, -painter.transform.angle);
     }
     vec3.transformMat3(lightPos, lightPos, lightMat);
 
-    const color = light.properties.get('color');
+    const lightColor = light.properties.get('color');
 
-    gl.uniform3fv(program.uniforms.u_lightpos, lightPos);
-    gl.uniform1f(program.uniforms.u_lightintensity, light.properties.get('intensity'));
-    gl.uniform3f(program.uniforms.u_lightcolor, color.r, color.g, color.b);
+    program.boundUniforms.set(program.uniforms, {
+        u_matrix: painter.translatePosMatrix(
+            coord.posMatrix,
+            tile,
+            layer.paint.get('fill-extrusion-translate'),
+            layer.paint.get('fill-extrusion-translate-anchor')
+        ),
+        u_lightpos: lightPos,
+        u_lightintensity: light.properties.get('intensity'),
+        u_lightcolor: [lightColor.r, lightColor.g, lightColor.b]
+    });
+
+    if (image) {
+        program.boundUniforms.set(util.extend({},
+            pattern._prepare(image, painter, program),
+            pattern._setTile(tile, painter, program),
+            { u_height_factor: -Math.pow(2, coord.overscaledZ) / tile.tileSize / 8 }));
+    }
+
+    program._draw(
+        context,
+        gl.TRIANGLES,
+        depthMode,
+        stencilMode,
+        colorMode,
+        // UniformValues,
+        layer.id,
+        bucket.layoutVertexBuffer,
+        bucket.indexBuffer,
+        bucket.segments,
+        // paint property binders,
+        layer.paint,
+        painter.transform.zoom,
+        programConfiguration);
 }

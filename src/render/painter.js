@@ -454,17 +454,17 @@ class Painter {
         return textures && textures.length > 0 ? textures.pop() : null;
     }
 
-    _createProgramCached(name: string, programConfiguration: ProgramConfiguration): Program {
+    _createProgramCached(name: string, programConfiguration: ProgramConfiguration, staticUniformBindings?: any /* TODO type + will prob eventually become non-nullable? */): Program {
         this.cache = this.cache || {};
         const key = `${name}${programConfiguration.cacheKey || ''}${this._showOverdrawInspector ? '/overdraw' : ''}`;
         if (!this.cache[key]) {
-            this.cache[key] = new Program(this.context, shaders[name], programConfiguration, this._showOverdrawInspector);
+            this.cache[key] = new Program(this.context, shaders[name], programConfiguration, this._showOverdrawInspector, staticUniformBindings);
         }
         return this.cache[key];
     }
 
-    useProgram(name: string, programConfiguration?: ProgramConfiguration): Program {
-        const nextProgram = this._createProgramCached(name, programConfiguration || this.emptyProgramConfiguration);
+    useProgram(name: string, programConfiguration?: ProgramConfiguration, staticUniformBindings?: any /* TODO type + will prob eventually become non-nullable?  */): Program {
+        const nextProgram = this._createProgramCached(name, programConfiguration || this.emptyProgramConfiguration, staticUniformBindings);
 
         this.context.program.set(nextProgram.program);
 

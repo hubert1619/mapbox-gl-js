@@ -11,6 +11,8 @@ const {
     StructArrayLayout2f8,
     StructArrayLayout4f16
 } = require('./array_types');
+const util = require('../util/util');
+// const UniformBinding = require('../render/uniform_binding');
 
 import type Context from '../gl/context';
 import type {TypedStyleLayer} from '../style/style_layer/typed_style_layer';
@@ -64,6 +66,9 @@ interface Binder<T> {
                 program: Program,
                 globals: GlobalProperties,
                 currentValue: PossiblyEvaluatedPropertyValue<T>): void;
+
+    // getUniforms(globals: GlobalProperties,
+    //             currentValue: PossiblyEvaluatedPropertyValue<T>): any;  // TOOD
 }
 
 class ConstantBinder<T> implements Binder<T> {
@@ -99,6 +104,12 @@ class ConstantBinder<T> implements Binder<T> {
             gl.uniform1f(program.uniforms[`u_${this.name}`], value);
         }
     }
+
+    // getUniforms(globals: GlobalProperties,
+    //             currentValue: PossiblyEvaluatedPropertyValue<T>): UniformBinding {
+    //     const value: any = currentValue.constantOr(this.value);
+    //     return new UniformBinding(this.type === 'color' ? 4 : 1, `u_${this.name}`, value);
+    // }
 }
 
 class SourceExpressionBinder<T> implements Binder<T> {
@@ -167,6 +178,10 @@ class SourceExpressionBinder<T> implements Binder<T> {
     setUniforms(context: Context, program: Program) {
         context.gl.uniform1f(program.uniforms[`a_${this.name}_t`], 0);
     }
+
+    // getUniforms(): UniformBinding {
+    //     return new UniformBinding(1, `a_${this.name}_t`, 0);
+    // }
 }
 
 class CompositeExpressionBinder<T> implements Binder<T> {
@@ -249,6 +264,10 @@ class CompositeExpressionBinder<T> implements Binder<T> {
     setUniforms(context: Context, program: Program, globals: GlobalProperties) {
         context.gl.uniform1f(program.uniforms[`a_${this.name}_t`], this.interpolationFactor(globals.zoom));
     }
+
+    // getUniforms(globals: GlobalProperties): UniformBinding {
+    //     return new UniformBinding(1, `a_${this.name}_t`, this.interpolationFactor(globals.zoom));
+    // }
 }
 
 /**
@@ -340,6 +359,11 @@ class ProgramConfiguration {
     getPaintVertexBuffers(): Array<VertexBuffer> {
         return this._buffers;
     }
+
+    // getUniforms<Properties: Object>(properties: PossiblyEvaluated<Properties>, globals: GlobalProperties): Array<UniformBinding> {
+    //     // return util.mapObject(this.binders, (binder, property) => binder.getUniforms(globals, properties.get(property)));
+    //     return Object.keys(this.binders).map(property => this.binders[property].getUniforms(globals, properties.get(property)));
+    // }
 
     upload(context: Context) {
         for (const property in this.binders) {
