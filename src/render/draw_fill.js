@@ -3,6 +3,7 @@
 const pattern = require('./pattern');
 const Color = require('../style-spec/util/color');
 const DepthMode = require('../gl/depth_mode');
+const util = require('../util/util');
 
 import type Painter from './painter';
 import type SourceCache from '../source/source_cache';
@@ -91,7 +92,9 @@ function drawStrokeTile(painter, sourceCache, layer, tile, coord, bucket, firstT
     const pattern = layer.getPaintProperty('fill-outline-color') ? null : layer.paint.get('fill-pattern');
 
     const program = setFillProgram('fillOutline', pattern, painter, programConfiguration, layer, tile, coord, firstTile);
-    gl.uniform2f(program.uniforms.u_world, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    program.staticUniforms.set(program.uniforms, {
+        u_world: [gl.drawingBufferWidth, gl.drawingBufferHeight]
+    });
 
     program.draw(
         painter.context,
@@ -115,14 +118,18 @@ function setFillProgram(programId, pat: ?CrossFaded<string>, painter, programCon
         program = painter.useProgram(`${programId}Pattern`, programConfiguration);
         if (firstTile || program.program !== prevProgram) {
             programConfiguration.setUniforms(painter.context, program, layer.paint, {zoom: painter.transform.zoom});
-            pattern.prepare(pat, painter, program);
         }
-        pattern.setTile(tile, painter, program);
+        program.staticUniforms.set(program.uniforms, util.extend(
+            pattern.prepare(pat, painter, program),
+            pattern.setTile(tile, painter, program)
+        ));
     }
-    painter.context.gl.uniformMatrix4fv(program.uniforms.u_matrix, false, painter.translatePosMatrix(
-        coord.posMatrix, tile,
-        layer.paint.get('fill-translate'),
-        layer.paint.get('fill-translate-anchor')
-    ));
+    program.staticUniforms.set(program.uniforms, {
+        u_matrix: painter.translatePosMatrix(
+            coord.posMatrix, tile,
+            layer.paint.get('fill-translate'),
+            layer.paint.get('fill-translate-anchor')
+        )
+    });
     return program;
 }

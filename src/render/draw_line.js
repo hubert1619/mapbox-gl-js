@@ -66,55 +66,68 @@ function drawLineTile(program, painter, tile, bucket, layer, coord, programConfi
             const widthA = posA.width * dasharray.fromScale;
             const widthB = posB.width * dasharray.toScale;
 
-            gl.uniform2f(program.uniforms.u_patternscale_a, tileRatio / widthA, -posA.height / 2);
-            gl.uniform2f(program.uniforms.u_patternscale_b, tileRatio / widthB, -posB.height / 2);
-            gl.uniform1f(program.uniforms.u_sdfgamma, painter.lineAtlas.width / (Math.min(widthA, widthB) * 256 * browser.devicePixelRatio) / 2);
+            program.staticUniforms.set(program.uniforms, {
+                u_patternscale_a: [tileRatio / widthA, -posA.height / 2],
+                u_patternscale_b: [tileRatio / widthB, -posB.height / 2],
+                u_sdfgamma: painter.lineAtlas.width / (Math.min(widthA, widthB) * 256 * browser.devicePixelRatio) / 2
+            });
 
         } else if (image) {
             imagePosA = painter.imageManager.getPattern(image.from);
             imagePosB = painter.imageManager.getPattern(image.to);
             if (!imagePosA || !imagePosB) return;
 
-            gl.uniform2f(program.uniforms.u_pattern_size_a, imagePosA.displaySize[0] * image.fromScale / tileRatio, imagePosB.displaySize[1]);
-            gl.uniform2f(program.uniforms.u_pattern_size_b, imagePosB.displaySize[0] * image.toScale / tileRatio, imagePosB.displaySize[1]);
-
             const {width, height} = painter.imageManager.getPixelSize();
-            gl.uniform2fv(program.uniforms.u_texsize, [width, height]);
+
+            program.staticUniforms.set(program.uniforms, {
+                u_pattern_size_a: [imagePosA.displaySize[0] * image.fromScale / tileRatio, imagePosB.displaySize[1]],
+                u_pattern_size_b: [imagePosB.displaySize[0] * image.toScale / tileRatio, imagePosB.displaySize[1]],
+                u_texsize: [width, height]
+            });
         }
 
-        gl.uniform2f(program.uniforms.u_gl_units_to_pixels, 1 / painter.transform.pixelsToGLUnits[0], 1 / painter.transform.pixelsToGLUnits[1]);
+        program.staticUniforms.set(program.uniforms, {
+            u_gl_units_to_pixels: [1 / painter.transform.pixelsToGLUnits[0], 1 / painter.transform.pixelsToGLUnits[1]]
+        });
     }
 
     if (programChanged) {
 
         if (dasharray) {
-            gl.uniform1i(program.uniforms.u_image, 0);
             context.activeTexture.set(gl.TEXTURE0);
             painter.lineAtlas.bind(context);
 
-            gl.uniform1f(program.uniforms.u_tex_y_a, (posA: any).y);
-            gl.uniform1f(program.uniforms.u_tex_y_b, (posB: any).y);
-            gl.uniform1f(program.uniforms.u_mix, dasharray.t);
+            program.staticUniforms.set(program.uniforms, {
+                u_image: 0,
+                u_tex_y_a: (posA: any).y,
+                u_tex_y_b: (posB: any).y,
+                u_mix: dasharray.t
+            });
+
 
         } else if (image) {
-            gl.uniform1i(program.uniforms.u_image, 0);
             context.activeTexture.set(gl.TEXTURE0);
             painter.imageManager.bind(context);
 
-            gl.uniform2fv(program.uniforms.u_pattern_tl_a, (imagePosA: any).tl);
-            gl.uniform2fv(program.uniforms.u_pattern_br_a, (imagePosA: any).br);
-            gl.uniform2fv(program.uniforms.u_pattern_tl_b, (imagePosB: any).tl);
-            gl.uniform2fv(program.uniforms.u_pattern_br_b, (imagePosB: any).br);
-            gl.uniform1f(program.uniforms.u_fade, image.t);
+            program.staticUniforms.set(program.uniforms, {
+                u_image: 0,
+                u_pattern_tl_a: (imagePosA: any).tl,
+                u_pattern_br_a: (imagePosA: any).br,
+                u_pattern_tl_b: (imagePosB: any).tl,
+                u_pattern_br_b: (imagePosB: any).br,
+                u_fade: image.t
+            });
         }
     }
 
     context.setStencilMode(painter.stencilModeForClipping(coord));
 
     const posMatrix = painter.translatePosMatrix(coord.posMatrix, tile, layer.paint.get('line-translate'), layer.paint.get('line-translate-anchor'));
-    gl.uniformMatrix4fv(program.uniforms.u_matrix, false, posMatrix);
 
-    gl.uniform1f(program.uniforms.u_ratio, 1 / pixelsToTileUnits(tile, 1, painter.transform.zoom));
+    program.staticUniforms.set(program.uniforms, {
+        u_matrix: posMatrix,
+        u_ratio: 1 / pixelsToTileUnits(tile, 1, painter.transform.zoom)
+    });
 
     program.draw(
         context,

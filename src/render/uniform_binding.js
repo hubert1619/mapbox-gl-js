@@ -11,6 +11,9 @@ export interface UniformInterface<T> {
     _set(location: WebGLUniformLocation, value: T): void;
 }
 
+export type UniformValues = {[string]: number | Array<number> | Float32Array};
+export type UniformLocations = {[string]: WebGLUniformLocation};
+
 class Uniform<T> {
     context: Context;
     current: T;
@@ -21,7 +24,9 @@ class Uniform<T> {
 
     set(location: WebGLUniformLocation, v: T) {
         let diff = false;
-        if (Array.isArray(this.current) && Array.isArray(v)) {
+        if (!this.current && v) {
+            diff = true;
+        } else if (Array.isArray(this.current) && Array.isArray(v)) {
             for (let i = 0; i < this.current.length; i++) {
                 if (this.current[i] !== v[i]) {
                     diff = true;
@@ -78,13 +83,13 @@ class UniformMatrix4fv extends Uniform<Float32Array> implements UniformInterface
 }
 
 class Uniforms {
-    bindings: Object;    // TODO type better
+    bindings: Object;
 
     constructor(bindings: Object) {
         this.bindings = bindings;
     }
 
-    set(uniformLocations: Object, uniformValues: Object) {      // TODO better typing
+    set(uniformLocations: UniformLocations, uniformValues: UniformValues) {
         for (const name in uniformValues) {
             assert(this.bindings[name]);
             this.bindings[name].set(uniformLocations[name], uniformValues[name]);
@@ -92,13 +97,10 @@ class Uniforms {
     }
 
     concatenate(otherUniforms: Uniforms) {      // TODO check copying overhead -- maybe not
-        this.bindings = util.extend({}, this.bindings, otherUniforms.bindings);
+        this.bindings = util.extend(this.bindings, otherUniforms.bindings);
         return this;
     }
-
-    // maybe also individual set accessor?
 }
-
 
 module.exports = {
     Uniform1i,

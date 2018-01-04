@@ -15,7 +15,7 @@ import type DepthMode from '../gl/depth_mode';
 import type StencilMode from '../gl/stencil_mode';
 import type ColorMode from '../gl/color_mode';
 import type {PossiblyEvaluated, PossiblyEvaluatedPropertyValue} from '../style/properties';
-import type Uniforms from './uniform_binding';
+import type {Uniforms, UniformLocations} from './uniform_binding';
 
 export type DrawMode =
     | $PropertyType<WebGLRenderingContext, 'LINES'>
@@ -23,16 +23,16 @@ export type DrawMode =
 
 class Program {
     program: WebGLProgram;
-    uniforms: {[string]: WebGLUniformLocation};
+    uniforms: UniformLocations;
     attributes: {[string]: number};
     numAttributes: number;
-    boundUniforms: any; // Uniforms;
+    staticUniforms: Uniforms;
 
     constructor(context: Context,
                 source: {fragmentSource: string, vertexSource: string},
                 configuration: ProgramConfiguration,
-                showOverdrawInspector: boolean,
-                staticUniformBindings: any   /* TODO */) {
+                staticUniforms: (Context) => Uniforms,
+                showOverdrawInspector: boolean) {
         const gl = context.gl;
         this.program = gl.createProgram();
 
@@ -89,11 +89,7 @@ class Program {
             }
         }
 
-        // TODO Eventually we will no longer have to store the intermediary location after this, and instead just construct uniform bindings directly
-        this.boundUniforms = {};
-        if (staticUniformBindings) {      // TODO should delete this if statement eventually when uniformBindings are required
-            this.boundUniforms = staticUniformBindings(context, configuration.binders);
-        }
+        this.staticUniforms = staticUniforms(context);
     }
 
     draw(context: Context,
@@ -141,7 +137,7 @@ class Program {
          depthMode: /*DepthMode*/any,
          stencilMode: /*StencilMode*/any,
          colorMode: /*ColorMode*/any,       // TODO sth wrong with these
-         // uniform values
+         uniformValues: {[string]: number | Array<number> | Float32Array},
          layerID: string,
          layoutVertexBuffer: VertexBuffer,
          indexBuffer: IndexBuffer,
@@ -160,6 +156,7 @@ class Program {
         context.setColorMode(colorMode);
 
         // const uniforms = configuration.getUniforms(currentProperties, {zoom: zoom});    // TODO: concat w uniformValues
+        this.staticUniforms.set(this.uniforms, uniformValues);
 
         const primitiveSize = {
             [gl.LINES]: 2,

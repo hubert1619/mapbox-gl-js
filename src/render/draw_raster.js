@@ -26,14 +26,16 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
     context.setColorMode(painter.colorModeForRenderPass());
 
     // Constant parameters.
-    gl.uniform1f(program.uniforms.u_brightness_low, layer.paint.get('raster-brightness-min'));
-    gl.uniform1f(program.uniforms.u_brightness_high, layer.paint.get('raster-brightness-max'));
-    gl.uniform1f(program.uniforms.u_saturation_factor, saturationFactor(layer.paint.get('raster-saturation')));
-    gl.uniform1f(program.uniforms.u_contrast_factor, contrastFactor(layer.paint.get('raster-contrast')));
-    gl.uniform3fv(program.uniforms.u_spin_weights, spinWeights(layer.paint.get('raster-hue-rotate')));
-    gl.uniform1f(program.uniforms.u_buffer_scale, 1);
-    gl.uniform1i(program.uniforms.u_image0, 0);
-    gl.uniform1i(program.uniforms.u_image1, 1);
+    program.staticUniforms.set(program.uniforms, {
+        u_brightness_low: layer.paint.get('raster-brightness-min'),
+        u_brightness_high: layer.paint.get('raster-brightness-max'),
+        u_saturation_factor: saturationFactor(layer.paint.get('raster-saturation')),
+        u_contrast_factor: contrastFactor(layer.paint.get('raster-contrast')),
+        u_spin_weights: spinWeights(layer.paint.get('raster-hue-rotate')),
+        u_buffer_scale: 1,
+        u_image0: 0,
+        u_image1: 1
+    });
 
     const minTileZ = coords.length && coords[0].overscaledZ;
 
@@ -47,8 +49,6 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
         const posMatrix = painter.transform.calculatePosMatrix(coord.toUnwrapped(), true);
 
         tile.registerFadeDuration(layer.paint.get('raster-fade-duration'));
-
-        gl.uniformMatrix4fv(program.uniforms.u_matrix, false, posMatrix);
 
         const parentTile = sourceCache.findLoadedParent(coord, 0, {}),
             fade = getFadeValues(tile, parentTile, sourceCache, layer, painter.transform);
@@ -69,12 +69,14 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
             tile.texture.bind(gl.LINEAR, gl.CLAMP_TO_EDGE, gl.LINEAR_MIPMAP_NEAREST);
         }
 
-        // cross-fade parameters
-        gl.uniform2fv(program.uniforms.u_tl_parent, parentTL || [0, 0]);
-        gl.uniform1f(program.uniforms.u_scale_parent, parentScaleBy || 1);
-        gl.uniform1f(program.uniforms.u_fade_t, fade.mix);
-        gl.uniform1f(program.uniforms.u_opacity, fade.opacity * layer.paint.get('raster-opacity'));
-
+        program.staticUniforms.set(program.uniforms, {
+            u_matrix: posMatrix,
+            // cross-fade parameters
+            u_tl_parent: parentTL || [0, 0],
+            u_scale_parent: parentScaleBy || 1,
+            u_fade_t: fade.mix,
+            u_opacity: fade.opacity * layer.paint.get('raster-opacity')
+        });
 
         if (source instanceof ImageSource) {
             const buffer = source.boundsBuffer;

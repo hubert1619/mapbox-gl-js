@@ -48,23 +48,28 @@ function drawCircles(painter: Painter, sourceCache: SourceCache, layer: CircleSt
             first = false;
         }
 
-        gl.uniform1f(program.uniforms.u_camera_to_center_distance, painter.transform.cameraToCenterDistance);
-        gl.uniform1i(program.uniforms.u_scale_with_map, layer.paint.get('circle-pitch-scale') === 'map' ? 1 : 0);
+        let pitchWithMap, extrudeScale;
         if (layer.paint.get('circle-pitch-alignment') === 'map') {
-            gl.uniform1i(program.uniforms.u_pitch_with_map, 1);
             const pixelRatio = pixelsToTileUnits(tile, 1, painter.transform.zoom);
-            gl.uniform2f(program.uniforms.u_extrude_scale, pixelRatio, pixelRatio);
+            pitchWithMap = 1;
+            extrudeScale = [pixelRatio, pixelRatio];
         } else {
-            gl.uniform1i(program.uniforms.u_pitch_with_map, 0);
-            gl.uniform2fv(program.uniforms.u_extrude_scale, painter.transform.pixelsToGLUnits);
+            pitchWithMap = 0;
+            extrudeScale = painter.transform.pixelsToGLUnits;
         }
 
-        gl.uniformMatrix4fv(program.uniforms.u_matrix, false, painter.translatePosMatrix(
-            coord.posMatrix,
-            tile,
-            layer.paint.get('circle-translate'),
-            layer.paint.get('circle-translate-anchor')
-        ));
+        program.staticUniforms.set(program.uniforms, {
+            u_camera_to_center_distance: painter.transform.cameraToCenterDistance,
+            u_scale_with_map: layer.paint.get('circle-pitch-scale') === 'map' ? 1 : 0,
+            u_matrix: painter.translatePosMatrix(
+                coord.posMatrix,
+                tile,
+                layer.paint.get('circle-translate'),
+                layer.paint.get('circle-translate-anchor')
+            ),
+            u_pitch_with_map: pitchWithMap,
+            u_extrude_scale: extrudeScale
+        });
 
         program.draw(
             context,

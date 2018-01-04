@@ -60,10 +60,11 @@ function drawHeatmap(painter: Painter, sourceCache: SourceCache, layer: HeatmapS
                 first = false;
             }
 
-            gl.uniform1f(program.uniforms.u_extrude_scale, pixelsToTileUnits(tile, 1, zoom));
-
-            gl.uniform1f(program.uniforms.u_intensity, layer.paint.get('heatmap-intensity'));
-            gl.uniformMatrix4fv(program.uniforms.u_matrix, false, coord.posMatrix);
+            program.staticUniforms.set(program.uniforms, {
+                u_extrude_scale: pixelsToTileUnits(tile, 1, zoom),
+                u_intensity: layer.paint.get('heatmap-intensity'),
+                u_matrix: coord.posMatrix
+            });
 
             program.draw(
                 context,
@@ -150,16 +151,16 @@ function renderTextureToMap(painter, layer) {
 
     const program = painter.useProgram('heatmapTexture');
 
-    const opacity = layer.paint.get('heatmap-opacity');
-    gl.uniform1f(program.uniforms.u_opacity, opacity);
-    gl.uniform1i(program.uniforms.u_image, 0);
-    gl.uniform1i(program.uniforms.u_color_ramp, 1);
-
     const matrix = mat4.create();
     mat4.ortho(matrix, 0, painter.width, painter.height, 0, 0, 1);
-    gl.uniformMatrix4fv(program.uniforms.u_matrix, false, matrix);
 
-    gl.uniform2f(program.uniforms.u_world, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    program.staticUniforms.set(program.uniforms, {
+        u_opacity: layer.paint.get('heatmap-opacity'),
+        u_image: 0,
+        u_color_ramp: 1,
+        u_matrix: matrix,
+        u_world: [gl.drawingBufferWidth, gl.drawingBufferHeight]
+    });
 
     painter.viewportVAO.bind(painter.context, program, painter.viewportBuffer, []);
 

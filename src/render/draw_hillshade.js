@@ -36,14 +36,6 @@ function drawHillshade(painter: Painter, sourceCache: SourceCache, layer: Hillsh
     context.viewport.set([0, 0, painter.width, painter.height]);
 }
 
-function setLight(program, painter, layer) {
-    let azimuthal = layer.paint.get('hillshade-illumination-direction') * (Math.PI / 180);
-    // modify azimuthal angle by map rotation if light is anchored at the viewport
-    if (layer.paint.get('hillshade-illumination-anchor') === 'viewport')  azimuthal -= painter.transform.angle;
-    painter.context.gl.uniform2f(program.uniforms.u_light, layer.paint.get('hillshade-exaggeration'), azimuthal);
-
-}
-
 function getTileLatRange(painter, tileID: OverscaledTileID) {
     const coordinate0 = tileID.toCoordinate();
     const coordinate1 = new Coordinate(coordinate0.column, coordinate0.row + 1, coordinate0.zoom);
@@ -57,24 +49,31 @@ function renderHillshade(painter, tile, layer) {
     if (!fbo) return;
 
     const program = painter.useProgram('hillshade');
+
+    let azimuthal = layer.paint.get('hillshade-illumination-direction') * (Math.PI / 180);
+    // modify azimuthal angle by map rotation if light is anchored at the viewport
+    if (layer.paint.get('hillshade-illumination-anchor') === 'viewport')  azimuthal -= painter.transform.angle;
+
     const posMatrix = painter.transform.calculatePosMatrix(tile.tileID.toUnwrapped(), true);
-    setLight(program, painter, layer);
     // for scaling the magnitude of a points slope by its latitude
     const latRange = getTileLatRange(painter, tile.tileID);
     context.activeTexture.set(gl.TEXTURE0);
 
+    const shadowColor = layer.paint.get("hillshade-shadow-color");
+    const highlightColor = layer.paint.get("hillshade-highlight-color");
+    const accentColor = layer.paint.get("hillshade-accent-color");
+
     gl.bindTexture(gl.TEXTURE_2D, fbo.colorAttachment.get());
 
-    gl.uniformMatrix4fv(program.uniforms.u_matrix, false, posMatrix);
-    gl.uniform2fv(program.uniforms.u_latrange, latRange);
-    gl.uniform1i(program.uniforms.u_image, 0);
-
-    const shadowColor = layer.paint.get("hillshade-shadow-color");
-    gl.uniform4f(program.uniforms.u_shadow, shadowColor.r, shadowColor.g, shadowColor.b, shadowColor.a);
-    const highlightColor = layer.paint.get("hillshade-highlight-color");
-    gl.uniform4f(program.uniforms.u_highlight, highlightColor.r, highlightColor.g, highlightColor.b, highlightColor.a);
-    const accentColor = layer.paint.get("hillshade-accent-color");
-    gl.uniform4f(program.uniforms.u_accent, accentColor.r, accentColor.g, accentColor.b, accentColor.a);
+    program.staticUniforms.set(program.uniforms, {
+        u_light: [layer.paint.get('hillshade-exaggeration'), azimuthal],
+        u_matrix: posMatrix,
+        u_latrange: latRange,
+        u_image: 0,
+        u_shadow: [shadowColor.r, shadowColor.g, shadowColor.b, shadowColor.a],
+        u_highlight: [highlightColor.r, highlightColor.g, highlightColor.b, highlightColor.a],
+        u_accent: [accentColor.r, accentColor.g, accentColor.b, accentColor.a]
+    });
 
     if (tile.maskedBoundsBuffer && tile.maskedIndexBuffer && tile.segments) {
         program.draw(
@@ -151,11 +150,13 @@ function prepareHillshade(painter, tile, sourceMaxZoom) {
 
         const program = painter.useProgram('hillshadePrepare');
 
-        gl.uniformMatrix4fv(program.uniforms.u_matrix, false, matrix);
-        gl.uniform1f(program.uniforms.u_zoom, tile.tileID.overscaledZ);
-        gl.uniform2fv(program.uniforms.u_dimension, [tileSize * 2, tileSize * 2]);
-        gl.uniform1i(program.uniforms.u_image, 1);
-        gl.uniform1f(program.uniforms.u_maxzoom, sourceMaxZoom);
+        program.staticUniforms.set(program.uniforms, {
+            u_matrix: matrix,
+            u_zoom: tile.tileID.overscaledZ,
+            u_dimension: [tileSize * 2, tileSize * 2],
+            u_image: 1,
+            u_maxzoom: sourceMaxZoom
+        });
 
         const buffer = painter.rasterBoundsBuffer;
         const vao = painter.rasterBoundsVAO;

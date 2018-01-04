@@ -13,6 +13,7 @@ const posAttributes = require('../data/pos_attributes');
 const {ProgramConfiguration} = require('../data/program_configuration');
 const CrossTileSymbolIndex = require('../symbol/cross_tile_symbol_index');
 const shaders = require('../shaders');
+const programs = require('./program/programs');     // TODO probablyrename
 const Program = require('./program');
 const Context = require('../gl/context');
 const DepthMode = require('../gl/depth_mode');
@@ -454,17 +455,17 @@ class Painter {
         return textures && textures.length > 0 ? textures.pop() : null;
     }
 
-    _createProgramCached(name: string, programConfiguration: ProgramConfiguration, staticUniformBindings?: any /* TODO type + will prob eventually become non-nullable? */): Program {
+    _createProgramCached(name: string, programConfiguration: ProgramConfiguration): Program {
         this.cache = this.cache || {};
         const key = `${name}${programConfiguration.cacheKey || ''}${this._showOverdrawInspector ? '/overdraw' : ''}`;
         if (!this.cache[key]) {
-            this.cache[key] = new Program(this.context, shaders[name], programConfiguration, this._showOverdrawInspector, staticUniformBindings);
+            this.cache[key] = new Program(this.context, shaders[name], programConfiguration, programs[name], this._showOverdrawInspector);
         }
         return this.cache[key];
     }
 
-    useProgram(name: string, programConfiguration?: ProgramConfiguration, staticUniformBindings?: any /* TODO type + will prob eventually become non-nullable?  */): Program {
-        const nextProgram = this._createProgramCached(name, programConfiguration || this.emptyProgramConfiguration, staticUniformBindings);
+    useProgram(name: string, programConfiguration?: ProgramConfiguration): Program {
+        const nextProgram = this._createProgramCached(name, programConfiguration || this.emptyProgramConfiguration);
 
         this.context.program.set(nextProgram.program);
 

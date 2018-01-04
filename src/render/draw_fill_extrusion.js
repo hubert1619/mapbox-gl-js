@@ -11,8 +11,6 @@ const mat4 = glMatrix.mat4;
 const vec3 = glMatrix.vec3;
 const StencilMode = require('../gl/stencil_mode');
 
-const {fillExtrusionUniforms, fillExtrusionPatternUniforms, extrusionTextureUniforms} = require('./program/fill_extrusion_program');
-
 import type Painter from './painter';
 import type SourceCache from '../source/source_cache';
 import type FillExtrusionStyleLayer from '../style/style_layer/fill_extrusion_style_layer';
@@ -82,7 +80,7 @@ function drawExtrusionTexture(painter, layer) {
 
     const context = painter.context;
     const gl = context.gl;
-    const program = painter.useProgram('extrusionTexture', undefined, extrusionTextureUniforms);
+    const program = painter.useProgram('extrusionTexture');
 
     context.setStencilMode(StencilMode.disabled);
     context.setDepthMode(DepthMode.disabled);
@@ -94,7 +92,7 @@ function drawExtrusionTexture(painter, layer) {
     const matrix = mat4.create();
     mat4.ortho(matrix, 0, painter.width, painter.height, 0, 0, 1);
 
-    program.boundUniforms.set(program.uniforms, {
+    program.staticUniforms.set(program.uniforms, {
         u_opacity: layer.paint.get('fill-extrusion-opacity'),
         u_image: 0,
         u_matrix: matrix,
@@ -115,19 +113,10 @@ function drawExtrusion(painter, source, layer, tile, coord, bucket, first, depth
     const prevProgram = painter.context.program.get();
     const programConfiguration = bucket.programConfigurations.get(layer.id);
 
-    const program = painter.useProgram(image ? 'fillExtrusionPattern' : 'fillExtrusion',
-        programConfiguration, image ? fillExtrusionPatternUniforms : fillExtrusionUniforms);
+    const program = painter.useProgram(image ? 'fillExtrusionPattern' : 'fillExtrusion', programConfiguration);
     if (first || program.program !== prevProgram) {
         programConfiguration.setUniforms(context, program, layer.paint, {zoom: painter.transform.zoom});
     }
-
-    // constructing a program should now also
-        // * initialize all static uniform bindings
-        // * bind all non-static uniform bindings (from programConfiguration)
-
-    // draw calls should now
-        // * set all static uniforms
-        // * set all non-static uniforms
 
     const light = painter.style.light;
 
@@ -141,7 +130,7 @@ function drawExtrusion(painter, source, layer, tile, coord, bucket, first, depth
 
     const lightColor = light.properties.get('color');
 
-    program.boundUniforms.set(program.uniforms, {
+    const uniformValues = {
         u_matrix: painter.translatePosMatrix(
             coord.posMatrix,
             tile,
@@ -151,13 +140,13 @@ function drawExtrusion(painter, source, layer, tile, coord, bucket, first, depth
         u_lightpos: lightPos,
         u_lightintensity: light.properties.get('intensity'),
         u_lightcolor: [lightColor.r, lightColor.g, lightColor.b]
-    });
+    };
 
     if (image) {
-        program.boundUniforms.set(util.extend({},
-            pattern._prepare(image, painter, program),
-            pattern._setTile(tile, painter, program),
-            { u_height_factor: -Math.pow(2, coord.overscaledZ) / tile.tileSize / 8 }));
+        util.extend(uniformValues,
+            pattern.prepare(image, painter, program),
+            pattern.setTile(tile, painter, program),
+            { u_height_factor: -Math.pow(2, coord.overscaledZ) / tile.tileSize / 8 });
     }
 
     program._draw(
@@ -166,7 +155,7 @@ function drawExtrusion(painter, source, layer, tile, coord, bucket, first, depth
         depthMode,
         stencilMode,
         colorMode,
-        // UniformValues,
+        uniformValues,
         layer.id,
         bucket.layoutVertexBuffer,
         bucket.indexBuffer,

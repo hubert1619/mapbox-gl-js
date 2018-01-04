@@ -28,21 +28,21 @@ function drawCollisionDebugGeometry(painter: Painter, sourceCache: SourceCache, 
         const buffers = drawCircles ? bucket.collisionCircle : bucket.collisionBox;
         if (!buffers) continue;
 
-
-        gl.uniformMatrix4fv(program.uniforms.u_matrix, false, coord.posMatrix);
-
         if (!drawCircles) {
             context.lineWidth.set(1);
         }
 
-        gl.uniform1f(program.uniforms.u_camera_to_center_distance, painter.transform.cameraToCenterDistance);
         const pixelRatio = pixelsToTileUnits(tile, 1, painter.transform.zoom);
         const scale = Math.pow(2, painter.transform.zoom - tile.tileID.overscaledZ);
-        gl.uniform1f(program.uniforms.u_pixels_to_tile_units, pixelRatio);
-        gl.uniform2f(program.uniforms.u_extrude_scale,
-            painter.transform.pixelsToGLUnits[0] / (pixelRatio * scale),
-            painter.transform.pixelsToGLUnits[1] / (pixelRatio * scale));
-        gl.uniform1f(program.uniforms.u_overscale_factor, tile.tileID.overscaleFactor());
+
+        program.staticUniforms.set(program.uniforms, {
+            u_matrix: coord.posMatrix,
+            u_camera_to_center_distance: painter.transform.cameraToCenterDistance,
+            u_pixels_to_tile_units: pixelRatio,
+            u_extrude_scale: [painter.transform.pixelsToGLUnits[0] / (pixelRatio * scale),
+                painter.transform.pixelsToGLUnits[1] / (pixelRatio * scale)],
+            u_overscale_factor: tile.tileID.overscaleFactor()
+        });
 
         program.draw(
             context,

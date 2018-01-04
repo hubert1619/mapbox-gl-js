@@ -34,8 +34,10 @@ function drawDebugTile(painter, sourceCache, coord) {
     context.setStencilMode(StencilMode.disabled);
     context.setColorMode(painter.colorModeForRenderPass());
 
-    gl.uniformMatrix4fv(program.uniforms.u_matrix, false, posMatrix);
-    gl.uniform4f(program.uniforms.u_color, 1, 0, 0, 1);
+    program.staticUniforms.set(program.uniforms, {
+        u_color: [1, 0, 0, 1],
+        u_matrix: posMatrix
+    });
     painter.debugVAO.bind(context, program, painter.debugBuffer, []);
     gl.drawArrays(gl.LINE_STRIP, 0, painter.debugBuffer.length);
 
@@ -47,7 +49,9 @@ function drawDebugTile(painter, sourceCache, coord) {
     const debugTextBuffer = context.createVertexBuffer(debugTextArray, posAttributes.members);
     const debugTextVAO = new VertexArrayObject();
     debugTextVAO.bind(context, program, debugTextBuffer, []);
-    gl.uniform4f(program.uniforms.u_color, 1, 1, 1, 1);
+    program.staticUniforms.set(program.uniforms, {
+        u_color: [1, 1, 1, 1]
+    });
 
     // Draw the halo with multiple 1px lines instead of one wider line because
     // the gl spec doesn't guarantee support for lines with width > 1.
@@ -56,12 +60,16 @@ function drawDebugTile(painter, sourceCache, coord) {
     const translations = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
     for (let i = 0; i < translations.length; i++) {
         const translation = translations[i];
-        gl.uniformMatrix4fv(program.uniforms.u_matrix, false, mat4.translate([], posMatrix, [onePixel * translation[0], onePixel * translation[1], 0]));
+        program.staticUniforms.set(program.uniforms, {
+            u_matrix: mat4.translate([], posMatrix, [onePixel * translation[0], onePixel * translation[1], 0])
+        });
         gl.drawArrays(gl.LINES, 0, debugTextBuffer.length);
     }
 
-    gl.uniform4f(program.uniforms.u_color, 0, 0, 0, 1);
-    gl.uniformMatrix4fv(program.uniforms.u_matrix, false, posMatrix);
+    program.staticUniforms.set(program.uniforms, {
+        u_color: [0, 0, 0, 1],
+        u_matrix: posMatrix
+    });
     gl.drawArrays(gl.LINES, 0, debugTextBuffer.length);
 }
 
