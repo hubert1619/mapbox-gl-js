@@ -6,7 +6,6 @@ const assert = require('assert');
 const {ProgramConfiguration} = require('../data/program_configuration');
 const VertexArrayObject = require('./vertex_array_object');
 const Context = require('../gl/context');
-const util = require('../util/util');
 
 import type {SegmentVector} from '../data/segment';
 import type VertexBuffer from '../gl/vertex_buffer';
@@ -14,8 +13,8 @@ import type IndexBuffer from '../gl/index_buffer';
 import type DepthMode from '../gl/depth_mode';
 import type StencilMode from '../gl/stencil_mode';
 import type ColorMode from '../gl/color_mode';
-import type {PossiblyEvaluated, PossiblyEvaluatedPropertyValue} from '../style/properties';
-import type {Uniforms, UniformLocations} from './uniform_binding';
+// import type {PossiblyEvaluated, PossiblyEvaluatedPropertyValue} from '../style/properties';
+import type {Uniforms, UniformValues, UniformLocations} from './uniform_binding';
 
 export type DrawMode =
     | $PropertyType<WebGLRenderingContext, 'LINES'>
@@ -26,12 +25,14 @@ class Program {
     uniforms: UniformLocations;
     attributes: {[string]: number};
     numAttributes: number;
-    staticUniforms: Uniforms;
+    fixedUniforms: Uniforms;
+    binderUniforms: Uniforms;
+    configuration: ProgramConfiguration;
 
     constructor(context: Context,
                 source: {fragmentSource: string, vertexSource: string},
                 configuration: ProgramConfiguration,
-                staticUniforms: (Context) => Uniforms,
+                fixedUniforms: (Context) => Uniforms,
                 showOverdrawInspector: boolean) {
         const gl = context.gl;
         this.program = gl.createProgram();
@@ -89,7 +90,8 @@ class Program {
             }
         }
 
-        this.staticUniforms = staticUniforms(context);
+        this.binderUniforms = configuration.getUniformBindings(context);
+        this.fixedUniforms = fixedUniforms(context);
     }
 
     draw(context: Context,
@@ -134,16 +136,16 @@ class Program {
 
     _draw(context: Context,
          drawMode: DrawMode,
-         depthMode: /*DepthMode*/any,
-         stencilMode: /*StencilMode*/any,
-         colorMode: /*ColorMode*/any,       // TODO sth wrong with these
-         uniformValues: {[string]: number | Array<number> | Float32Array},
+         depthMode: $ReadOnly<DepthMode>,
+         stencilMode: $ReadOnly<StencilMode>,
+         colorMode: $ReadOnly<ColorMode>,
+         uniformValues: UniformValues,
          layerID: string,
          layoutVertexBuffer: VertexBuffer,
          indexBuffer: IndexBuffer,
          segments: SegmentVector,
          // paint prop binders, ?? or just use from ProgramConfiguration
-         currentProperties: any, //PossiblyEvaluated<Properties>,
+         currentProperties: any,
          zoom: number,
          configuration: ?ProgramConfiguration,
          dynamicLayoutBuffer: ?VertexBuffer,
@@ -155,8 +157,8 @@ class Program {
         context.setStencilMode(stencilMode);
         context.setColorMode(colorMode);
 
-        // const uniforms = configuration.getUniforms(currentProperties, {zoom: zoom});    // TODO: concat w uniformValues
-        this.staticUniforms.set(this.uniforms, uniformValues);
+        this.fixedUniforms.set(this.uniforms, uniformValues);
+        if (configuration) this.binderUniforms.set(this.uniforms, configuration.getUniforms(currentProperties, {zoom: zoom}));
 
         const primitiveSize = {
             [gl.LINES]: 2,

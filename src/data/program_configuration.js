@@ -11,8 +11,7 @@ const {
     StructArrayLayout2f8,
     StructArrayLayout4f16
 } = require('./array_types');
-const util = require('../util/util');
-// const UniformBinding = require('../render/uniform_binding');
+const {Uniforms, Uniform1f, Uniform4fv} = require('../render/uniform_binding');
 
 import type Context from '../gl/context';
 import type {TypedStyleLayer} from '../style/style_layer/typed_style_layer';
@@ -21,6 +20,7 @@ import type VertexBuffer from '../gl/vertex_buffer';
 import type Program from '../render/program';
 import type {Feature, SourceExpression, CompositeExpression} from '../style-spec/expression';
 import type {PossiblyEvaluated} from '../style/properties';
+import type {UniformValues} from '../render/uniform_binding';
 
 function packColor(color: Color): [number, number] {
     return [
@@ -55,6 +55,7 @@ function packColor(color: Color): [number, number] {
  */
 interface Binder<T> {
     statistics: { max: number };
+    uniformName: string;
 
     populatePaintArray(length: number, feature: Feature): void;
     upload(Context): void;
@@ -67,19 +68,21 @@ interface Binder<T> {
                 globals: GlobalProperties,
                 currentValue: PossiblyEvaluatedPropertyValue<T>): void;
 
-    // getUniforms(globals: GlobalProperties,
-    //             currentValue: PossiblyEvaluatedPropertyValue<T>): any;  // TOOD
+    getUniforms(globals: GlobalProperties,
+                currentValue: PossiblyEvaluatedPropertyValue<T>): number | Array<number>;
 }
 
 class ConstantBinder<T> implements Binder<T> {
     value: T;
     name: string;
-    type: string;
     statistics: { max: number };
+    type: string;
+    uniformName: string;
 
     constructor(value: T, name: string, type: string) {
         this.value = value;
         this.name = name;
+        this.uniformName = `u_${this.name}`;
         this.type = type;
         this.statistics = { max: -Infinity };
     }
@@ -105,16 +108,17 @@ class ConstantBinder<T> implements Binder<T> {
         }
     }
 
-    // getUniforms(globals: GlobalProperties,
-    //             currentValue: PossiblyEvaluatedPropertyValue<T>): UniformBinding {
-    //     const value: any = currentValue.constantOr(this.value);
-    //     return new UniformBinding(this.type === 'color' ? 4 : 1, `u_${this.name}`, value);
-    // }
+    getUniforms(globals: GlobalProperties,
+                currentValue: PossiblyEvaluatedPropertyValue<T>): number | Array<number> {
+        const value: any = currentValue.constantOr(this.value);
+        return this.type === 'color' ? [value.r, value.g, value.b, value.a] : value;
+    }
 }
 
 class SourceExpressionBinder<T> implements Binder<T> {
     expression: SourceExpression;
     name: string;
+    uniformName: string;
     type: string;
     statistics: { max: number };
 
@@ -126,6 +130,7 @@ class SourceExpressionBinder<T> implements Binder<T> {
         this.expression = expression;
         this.name = name;
         this.type = type;
+        this.uniformName = `a_${name}`;
         this.statistics = { max: -Infinity };
         const PaintVertexArray = type === 'color' ? StructArrayLayout2f8 : StructArrayLayout1f4;
         this.paintVertexAttributes = [{
@@ -179,14 +184,15 @@ class SourceExpressionBinder<T> implements Binder<T> {
         context.gl.uniform1f(program.uniforms[`a_${this.name}_t`], 0);
     }
 
-    // getUniforms(): UniformBinding {
-    //     return new UniformBinding(1, `a_${this.name}_t`, 0);
-    // }
+    getUniforms(): number {
+        return 0;
+    }
 }
 
 class CompositeExpressionBinder<T> implements Binder<T> {
     expression: CompositeExpression;
     name: string;
+    uniformName: string;
     type: string;
     useIntegerZoom: boolean;
     zoom: number;
@@ -199,6 +205,7 @@ class CompositeExpressionBinder<T> implements Binder<T> {
     constructor(expression: CompositeExpression, name: string, type: string, useIntegerZoom: boolean, zoom: number) {
         this.expression = expression;
         this.name = name;
+        this.uniformName = `a_${this.name}_t`;
         this.type = type;
         this.useIntegerZoom = useIntegerZoom;
         this.zoom = zoom;
@@ -265,9 +272,9 @@ class CompositeExpressionBinder<T> implements Binder<T> {
         context.gl.uniform1f(program.uniforms[`a_${this.name}_t`], this.interpolationFactor(globals.zoom));
     }
 
-    // getUniforms(globals: GlobalProperties): UniformBinding {
-    //     return new UniformBinding(1, `a_${this.name}_t`, this.interpolationFactor(globals.zoom));
-    // }
+    getUniforms(globals: GlobalProperties): number {
+        return this.interpolationFactor(globals.zoom);
+    }
 }
 
 /**
@@ -360,10 +367,28 @@ class ProgramConfiguration {
         return this._buffers;
     }
 
-    // getUniforms<Properties: Object>(properties: PossiblyEvaluated<Properties>, globals: GlobalProperties): Array<UniformBinding> {
-    //     // return util.mapObject(this.binders, (binder, property) => binder.getUniforms(globals, properties.get(property)));
-    //     return Object.keys(this.binders).map(property => this.binders[property].getUniforms(globals, properties.get(property)));
-    // }
+    getUniformBindings(context: Context): Uniforms {
+        const uniformBindings = {};
+        for (const property in this.binders) {
+            const binder = this.binders[property];
+            if (binder instanceof ConstantBinder && binder.type === 'color') {
+                uniformBindings[binder.uniformName] = new Uniform4fv(context);
+            } else {
+                uniformBindings[binder.uniformName] = new Uniform1f(context);
+            }
+        }
+
+        return new Uniforms(uniformBindings);
+    }
+
+    getUniforms<Properties: Object>(properties: PossiblyEvaluated<Properties>, globals: GlobalProperties): UniformValues {
+        const uniformValues = {};
+        for (const property in this.binders) {
+            const binder = this.binders[property];
+            uniformValues[binder.uniformName] = binder.getUniforms(globals, properties.get(property));
+        }
+        return uniformValues;
+    }
 
     upload(context: Context) {
         for (const property in this.binders) {

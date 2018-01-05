@@ -9,6 +9,7 @@ const identityMat4 = mat4.identity(new Float32Array(16));
 const symbolLayoutProperties = require('../style/style_layer/symbol_style_layer_properties').layout;
 const StencilMode = require('../gl/stencil_mode');
 const DepthMode = require('../gl/depth_mode');
+const {symbolIconUniformValues, symbolSDFUniformValues} = require('./program/symbol_program');
 
 import type Painter from './painter';
 import type SourceCache from '../source/source_cache';
@@ -21,11 +22,9 @@ module.exports = drawSymbols;
 function drawSymbols(painter: Painter, sourceCache: SourceCache, layer: SymbolStyleLayer, coords: Array<OverscaledTileID>) {
     if (painter.renderPass !== 'translucent') return;
 
-    const context = painter.context;
-
     // Disable the stencil test so that labels aren't clipped to tile boundaries.
-    context.setStencilMode(StencilMode.disabled);
-    context.setColorMode(painter.colorModeForRenderPass());
+    const stencilMode = StencilMode.disabled;
+    const colorMode = painter.colorModeForRenderPass();
 
     if (layer.paint.get('icon-opacity').constantOr(1) !== 0) {
         drawLayerSymbols(painter, sourceCache, layer, coords, false,
@@ -33,7 +32,8 @@ function drawSymbols(painter: Painter, sourceCache: SourceCache, layer: SymbolSt
             layer.paint.get('icon-translate-anchor'),
             layer.layout.get('icon-rotation-alignment'),
             layer.layout.get('icon-pitch-alignment'),
-            layer.layout.get('icon-keep-upright')
+            layer.layout.get('icon-keep-upright'),
+            stencilMode, colorMode
         );
     }
 
@@ -43,7 +43,8 @@ function drawSymbols(painter: Painter, sourceCache: SourceCache, layer: SymbolSt
             layer.paint.get('text-translate-anchor'),
             layer.layout.get('text-rotation-alignment'),
             layer.layout.get('text-pitch-alignment'),
-            layer.layout.get('text-keep-upright')
+            layer.layout.get('text-keep-upright'),
+            stencilMode, colorMode
         );
     }
 
@@ -53,7 +54,7 @@ function drawSymbols(painter: Painter, sourceCache: SourceCache, layer: SymbolSt
 }
 
 function drawLayerSymbols(painter, sourceCache, layer, coords, isText, translate, translateAnchor,
-    rotationAlignment, pitchAlignment, keepUpright) {
+    rotationAlignment, pitchAlignment, keepUpright, stencilMode, colorMode) {
 
     const context = painter.context;
     const gl = context.gl;
@@ -69,9 +70,10 @@ function drawLayerSymbols(painter, sourceCache, layer, coords, isText, translate
 
     const depthOn = pitchWithMap;
 
-    context.setDepthMode(depthOn ? painter.depthModeForSublayer(0, DepthMode.ReadOnly) : DepthMode.disabled);
+    const depthMode = depthOn ? painter.depthModeForSublayer(0, DepthMode.ReadOnly) : DepthMode.disabled;
 
     let program;
+    let size;
 
     for (const coord of coords) {
         const tile = sourceCache.getTile(coord);
@@ -89,7 +91,7 @@ function drawLayerSymbols(painter, sourceCache, layer, coords, isText, translate
             program = painter.useProgram(isSDF ? 'symbolSDF' : 'symbolIcon', programConfiguration);
             programConfiguration.setUniforms(painter.context, program, layer.paint, {zoom: painter.transform.zoom});
 
-            setSymbolDrawState(program, painter, layer, isText, rotateInShader, pitchWithMap, sizeData);
+            size = symbolSize.evaluateSizeForZoom(sizeData, tr.zoom, symbolLayoutProperties.properties[isText ? 'text-size' : 'icon-size']);
         }
 
         context.activeTexture.set(gl.TEXTURE0);
@@ -105,90 +107,61 @@ function drawLayerSymbols(painter, sourceCache, layer, coords, isText, translate
             tile.iconAtlasTexture.bind(isSDF || painter.options.rotating || painter.options.zooming || iconScaled || iconTransformed ?
                 gl.LINEAR : gl.NEAREST, gl.CLAMP_TO_EDGE);
 
-            texSize = tile.glyphAtlasTexture.size;
+            texSize = tile.iconAtlasTexture.size;
         }
 
         const s = pixelsToTileUnits(tile, 1, painter.transform.zoom);
         const labelPlaneMatrix = symbolProjection.getLabelPlaneMatrix(coord.posMatrix, pitchWithMap, rotateWithMap, painter.transform, s);
         const glCoordMatrix = symbolProjection.getGlCoordMatrix(coord.posMatrix, pitchWithMap, rotateWithMap, painter.transform, s);
 
-        program.staticUniforms.set(program.uniforms, {
-            u_texture: 0,
-            u_texsize: texSize,
-            u_matrix: painter.translatePosMatrix(coord.posMatrix, tile, translate, translateAnchor),
-            u_gl_coord_matrix: painter.translatePosMatrix(glCoordMatrix, tile, translate, translateAnchor, true),
-            u_label_plane_matrix: alongLine ? identityMat4 : labelPlaneMatrix,
-            u_fade_change: painter.options.fadeDuration ? painter.symbolFadeChange : 1
-        });
-
         if (alongLine) {
             symbolProjection.updateLineLabels(bucket, coord.posMatrix, painter, isText, labelPlaneMatrix, glCoordMatrix, pitchWithMap, keepUpright);
         }
 
-        drawTileSymbols(program, programConfiguration, painter, layer, tile, buffers, isText, isSDF, pitchWithMap);
-    }
-}
+        const matrix = painter.translatePosMatrix(coord.posMatrix, tile, translate, translateAnchor),
+            uLabelPlaneMatrix = alongLine ? identityMat4 : labelPlaneMatrix,
+            uglCoordMatrix = painter.translatePosMatrix(glCoordMatrix, tile, translate, translateAnchor, true);
 
-function setSymbolDrawState(program, painter, layer, isText, rotateInShader, pitchWithMap, sizeData) {
+        let uniformValues;
+        if (isSDF) {
+            const hasHalo = layer.paint.get(isText ? 'text-halo-width' : 'icon-halo-width').constantOr(1) !== 0;
 
-    const gl = painter.context.gl;
-    const tr = painter.transform;
+            uniformValues = symbolSDFUniformValues(sizeData.functionType,
+                size, rotateInShader, pitchWithMap, painter, matrix,
+                uLabelPlaneMatrix, uglCoordMatrix, isText, texSize, true);
 
-    const isZoomConstant = sizeData.functionType === 'constant' || sizeData.functionType === 'source';
-    const isFeatureConstant = sizeData.functionType === 'constant' || sizeData.functionType === 'camera';
+            if (hasHalo) {
+                drawSymbolElements(buffers, layer, painter, program, depthMode, stencilMode, colorMode, uniformValues);
+            }
 
-    const size = symbolSize.evaluateSizeForZoom(sizeData, tr.zoom, symbolLayoutProperties.properties[isText ? 'text-size' : 'icon-size']);
+            uniformValues['u_is_halo'] = 0;
 
-    program.staticUniforms.set(program.uniforms, {
-        u_pitch_with_map: pitchWithMap ? 1 : 0,
-        u_is_text: isText ? 1 : 0,
-        u_pitch: tr.pitch / 360 * 2 * Math.PI,
-        u_is_size_zoom_constant: isZoomConstant ? 1 : 0,
-        u_is_size_feature_constant: isFeatureConstant ? 1 : 0,
-        u_camera_to_center_distance: tr.cameraToCenterDistance,
-        u_aspect_ratio: tr.width / tr.height,
-        u_rotate_symbol: rotateInShader ? 1 : 0,
-        u_size_t: size.uSizeT,              // TODO both this and u_size checked for undefined before -- is this ok to set even if undef?
-        u_size: size.uSize,                     // (also bc set(undef) might trip up flow). If so, use util.extend?
-    });
-}
-
-function drawTileSymbols(program, programConfiguration, painter, layer, tile, buffers, isText, isSDF, pitchWithMap) {
-
-    const context = painter.context;
-    const gl = context.gl;
-    const tr = painter.transform;
-
-    if (isSDF) {
-        const hasHalo = layer.paint.get(isText ? 'text-halo-width' : 'icon-halo-width').constantOr(1) !== 0;
-        const gammaScale = (pitchWithMap ? Math.cos(tr._pitch) * tr.cameraToCenterDistance : 1);
-        program.staticUniforms.set(program.uniforms, {
-            u_gamma_scale: gammaScale
-        });
-
-        if (hasHalo) { // Draw halo underneath the text.
-            program.staticUniforms.set(program.uniforms, {
-                u_is_halo: 1
-            });
-            drawSymbolElements(buffers, layer, context, program);
+        } else {
+            uniformValues = symbolIconUniformValues(sizeData.functionType,
+                size, rotateInShader, pitchWithMap, painter, matrix,
+                uLabelPlaneMatrix, uglCoordMatrix, isText, texSize);
         }
 
-        program.staticUniforms.set(program.uniforms, {
-            u_is_halo: 0
-        });
+        drawSymbolElements(buffers, layer, painter, program, depthMode, stencilMode, colorMode, uniformValues);
     }
-
-    drawSymbolElements(buffers, layer, context, program);
 }
 
-function drawSymbolElements(buffers, layer, context, program) {
-    program.draw(
+function drawSymbolElements(buffers, layer, painter, program, depthMode, stencilMode, colorMode, uniformValues) {
+    const context = painter.context;
+    const gl = context.gl;
+    program._draw(
         context,
-        context.gl.TRIANGLES,
+        gl.TRIANGLES,
+        depthMode,
+        stencilMode,
+        colorMode,
+        uniformValues,
         layer.id,
         buffers.layoutVertexBuffer,
         buffers.indexBuffer,
         buffers.segments,
+        layer.paint,
+        painter.transform.zoom,
         buffers.programConfigurations.get(layer.id),
         buffers.dynamicLayoutVertexBuffer,
         buffers.opacityVertexBuffer);

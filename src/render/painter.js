@@ -13,7 +13,7 @@ const posAttributes = require('../data/pos_attributes');
 const {ProgramConfiguration} = require('../data/program_configuration');
 const CrossTileSymbolIndex = require('../symbol/cross_tile_symbol_index');
 const shaders = require('../shaders');
-const programs = require('./program/programs');     // TODO probablyrename
+const programs = require('./program/programs');     // TODO probably rename
 const Program = require('./program');
 const Context = require('../gl/context');
 const DepthMode = require('../gl/depth_mode');
@@ -21,6 +21,7 @@ const StencilMode = require('../gl/stencil_mode');
 const ColorMode = require('../gl/color_mode');
 const Texture = require('./texture');
 const updateTileMasks = require('./tile_mask');
+const {clippingMaskUniformValues} = require('./program/clipping_mask_program');
 const Color = require('../style-spec/util/color');
 
 const draw = {
@@ -200,7 +201,7 @@ class Painter {
         mat4.scale(matrix, matrix, [gl.drawingBufferWidth, gl.drawingBufferHeight, 0]);
 
         const program = this.useProgram('clippingMask');
-        gl.uniformMatrix4fv(program.uniforms.u_matrix, false, matrix);
+        program.fixedUniforms.set(program.uniforms, clippingMaskUniformValues(matrix));
 
         this.viewportVAO.bind(context, program, this.viewportBuffer, []);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -223,7 +224,7 @@ class Painter {
             context.setStencilMode(new StencilMode({ func: gl.ALWAYS, mask: 0 }, id, 0xFF, gl.KEEP, gl.KEEP, gl.REPLACE));
 
             const program = this.useProgram('clippingMask');
-            gl.uniformMatrix4fv(program.uniforms.u_matrix, false, tileID.posMatrix);
+            program.fixedUniforms.set(program.uniforms, clippingMaskUniformValues(tileID.posMatrix));
 
             // Draw the clipping mask
             this.tileExtentVAO.bind(this.context, program, this.tileExtentBuffer, []);

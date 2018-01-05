@@ -7,6 +7,8 @@ const {
 } = require('../uniform_binding');
 
 import type Context from '../../gl/context';
+import type {UniformValues} from '../uniform_binding';
+import type Color from '../../style-spec/util/color';
 
 const debugUniforms = (context: Context) => {
     return new Uniforms({
@@ -15,4 +17,11 @@ const debugUniforms = (context: Context) => {
     });
 };
 
-module.exports = { debugUniforms };
+function debugUniformValues(matrix: Float32Array, color: Color): UniformValues {
+    return {
+        'u_matrix': matrix,
+        'u_color': [color.r, color.g, color.b, color.a]
+    };
+}
+
+module.exports = { debugUniforms, debugUniformValues };

@@ -5,6 +5,7 @@ const EXTENT = require('../data/extent');
 const mat4 = require('@mapbox/gl-matrix').mat4;
 const StencilMode = require('../gl/stencil_mode');
 const DepthMode = require('../gl/depth_mode');
+const {hillshadeUniformValues, hillshadeUniformPrepareValues} = require('./program/hillshade_program');
 
 import type Painter from './painter';
 import type SourceCache from '../source/source_cache';
@@ -65,15 +66,10 @@ function renderHillshade(painter, tile, layer) {
 
     gl.bindTexture(gl.TEXTURE_2D, fbo.colorAttachment.get());
 
-    program.staticUniforms.set(program.uniforms, {
-        u_light: [layer.paint.get('hillshade-exaggeration'), azimuthal],
-        u_matrix: posMatrix,
-        u_latrange: latRange,
-        u_image: 0,
-        u_shadow: [shadowColor.r, shadowColor.g, shadowColor.b, shadowColor.a],
-        u_highlight: [highlightColor.r, highlightColor.g, highlightColor.b, highlightColor.a],
-        u_accent: [accentColor.r, accentColor.g, accentColor.b, accentColor.a]
-    });
+    const uniformValues = hillshadeUniformValues(posMatrix, 0, latRange,
+        [layer.paint.get('hillshade-exaggeration'), azimuthal],
+        shadowColor, highlightColor, accentColor);
+    program.fixedUniforms.set(program.uniforms, uniformValues);
 
     if (tile.maskedBoundsBuffer && tile.maskedIndexBuffer && tile.segments) {
         program.draw(
@@ -150,13 +146,8 @@ function prepareHillshade(painter, tile, sourceMaxZoom) {
 
         const program = painter.useProgram('hillshadePrepare');
 
-        program.staticUniforms.set(program.uniforms, {
-            u_matrix: matrix,
-            u_zoom: tile.tileID.overscaledZ,
-            u_dimension: [tileSize * 2, tileSize * 2],
-            u_image: 1,
-            u_maxzoom: sourceMaxZoom
-        });
+        program.fixedUniforms.set(program.uniforms, hillshadeUniformPrepareValues(
+            matrix, 1, [tileSize * 2, tileSize * 2], tile.tileID.overscaledZ, sourceMaxZoom));
 
         const buffer = painter.rasterBoundsBuffer;
         const vao = painter.rasterBoundsVAO;

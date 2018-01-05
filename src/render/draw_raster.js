@@ -5,6 +5,7 @@ const ImageSource = require('../source/image_source');
 const browser = require('../util/browser');
 const StencilMode = require('../gl/stencil_mode');
 const DepthMode = require('../gl/depth_mode');
+const {rasterUniformValues} = require('./program/raster_program');
 
 import type Painter from './painter';
 import type SourceCache from '../source/source_cache';
@@ -22,28 +23,19 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
     const source = sourceCache.getSource();
     const program = painter.useProgram('raster');
 
-    context.setStencilMode(StencilMode.disabled);
-    context.setColorMode(painter.colorModeForRenderPass());
+    const stencilMode = StencilMode.disabled;
+    const colorMode = painter.colorModeForRenderPass();
 
-    // Constant parameters.
-    program.staticUniforms.set(program.uniforms, {
-        u_brightness_low: layer.paint.get('raster-brightness-min'),
-        u_brightness_high: layer.paint.get('raster-brightness-max'),
-        u_saturation_factor: saturationFactor(layer.paint.get('raster-saturation')),
-        u_contrast_factor: contrastFactor(layer.paint.get('raster-contrast')),
-        u_spin_weights: spinWeights(layer.paint.get('raster-hue-rotate')),
-        u_buffer_scale: 1,
-        u_image0: 0,
-        u_image1: 1
-    });
+    // TODO we could keep some of the uniform calculation here (saturationFactor, contrastFactor, spinWeights) rather
+    // than moving to raster_program in order to save a tiny amount of compute time per tile -- ??
 
     const minTileZ = coords.length && coords[0].overscaledZ;
 
     for (const coord of coords) {
         // Set the lower zoom level to sublayer 0, and higher zoom levels to higher sublayers
         // Use gl.LESS to prevent double drawing in areas where tiles overlap.
-        context.setDepthMode(painter.depthModeForSublayer(coord.overscaledZ - minTileZ,
-            layer.paint.get('raster-opacity') === 1 ? DepthMode.ReadWrite : DepthMode.ReadOnly, gl.LESS));
+        const depthMode = painter.depthModeForSublayer(coord.overscaledZ - minTileZ,
+            layer.paint.get('raster-opacity') === 1 ? DepthMode.ReadWrite : DepthMode.ReadOnly, gl.LESS);
 
         const tile = sourceCache.getTile(coord);
         const posMatrix = painter.transform.calculatePosMatrix(coord.toUnwrapped(), true);
@@ -69,14 +61,7 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
             tile.texture.bind(gl.LINEAR, gl.CLAMP_TO_EDGE, gl.LINEAR_MIPMAP_NEAREST);
         }
 
-        program.staticUniforms.set(program.uniforms, {
-            u_matrix: posMatrix,
-            // cross-fade parameters
-            u_tl_parent: parentTL || [0, 0],
-            u_scale_parent: parentScaleBy || 1,
-            u_fade_t: fade.mix,
-            u_opacity: fade.opacity * layer.paint.get('raster-opacity')
-        });
+        const uniformValues = rasterUniformValues(posMatrix, parentTL || [0, 0], parentScaleBy || 1, fade, layer);
 
         if (source instanceof ImageSource) {
             const buffer = source.boundsBuffer;
@@ -84,44 +69,31 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
             vao.bind(context, program, buffer, []);
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, buffer.length);
         } else if (tile.maskedBoundsBuffer && tile.maskedIndexBuffer && tile.segments) {
-            program.draw(
+            program._draw(
                 context,
                 gl.TRIANGLES,
+                depthMode,
+                stencilMode,
+                colorMode,
+                uniformValues,
                 layer.id,
                 tile.maskedBoundsBuffer,
                 tile.maskedIndexBuffer,
-                tile.segments
-            );
+                tile.segments,
+                layer.paint,
+                painter.transform.zoom,
+                null);
         } else {
+            program.fixedUniforms.set(program.uniforms, uniformValues);
+            context.setDepthMode(depthMode);
+            context.setStencilMode(stencilMode);
+            context.setColorMode(colorMode);
             const buffer = painter.rasterBoundsBuffer;
             const vao = painter.rasterBoundsVAO;
             vao.bind(context, program, buffer, []);
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, buffer.length);
         }
     }
-}
-
-function spinWeights(angle) {
-    angle *= Math.PI / 180;
-    const s = Math.sin(angle);
-    const c = Math.cos(angle);
-    return [
-        (2 * c + 1) / 3,
-        (-Math.sqrt(3) * s - c + 1) / 3,
-        (Math.sqrt(3) * s - c + 1) / 3
-    ];
-}
-
-function contrastFactor(contrast) {
-    return contrast > 0 ?
-        1 / (1 - contrast) :
-        1 + contrast;
-}
-
-function saturationFactor(saturation) {
-    return saturation > 0 ?
-        1 - 1 / (1.001 - saturation) :
-        -saturation;
 }
 
 function getFadeValues(tile, parentTile, sourceCache, layer, transform) {

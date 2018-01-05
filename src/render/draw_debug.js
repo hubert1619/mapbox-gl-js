@@ -8,6 +8,8 @@ const {PosArray} = require('../data/array_types');
 const posAttributes = require('../data/pos_attributes');
 const DepthMode = require('../gl/depth_mode');
 const StencilMode = require('../gl/stencil_mode');
+const {debugUniformValues} = require('./program/debug_program');
+const Color = require('../style-spec/util/color');
 
 import type Painter from './painter';
 import type SourceCache from '../source/source_cache';
@@ -34,10 +36,7 @@ function drawDebugTile(painter, sourceCache, coord) {
     context.setStencilMode(StencilMode.disabled);
     context.setColorMode(painter.colorModeForRenderPass());
 
-    program.staticUniforms.set(program.uniforms, {
-        u_color: [1, 0, 0, 1],
-        u_matrix: posMatrix
-    });
+    program.fixedUniforms.set(program.uniforms, debugUniformValues(posMatrix, Color.red));
     painter.debugVAO.bind(context, program, painter.debugBuffer, []);
     gl.drawArrays(gl.LINE_STRIP, 0, painter.debugBuffer.length);
 
@@ -49,9 +48,7 @@ function drawDebugTile(painter, sourceCache, coord) {
     const debugTextBuffer = context.createVertexBuffer(debugTextArray, posAttributes.members);
     const debugTextVAO = new VertexArrayObject();
     debugTextVAO.bind(context, program, debugTextBuffer, []);
-    program.staticUniforms.set(program.uniforms, {
-        u_color: [1, 1, 1, 1]
-    });
+    program.fixedUniforms.set(program.uniforms, debugUniformValues(posMatrix, Color.white));
 
     // Draw the halo with multiple 1px lines instead of one wider line because
     // the gl spec doesn't guarantee support for lines with width > 1.
@@ -60,16 +57,13 @@ function drawDebugTile(painter, sourceCache, coord) {
     const translations = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
     for (let i = 0; i < translations.length; i++) {
         const translation = translations[i];
-        program.staticUniforms.set(program.uniforms, {
-            u_matrix: mat4.translate([], posMatrix, [onePixel * translation[0], onePixel * translation[1], 0])
-        });
+        program.fixedUniforms.set(program.uniforms, debugUniformValues(
+            mat4.translate([], posMatrix, [onePixel * translation[0], onePixel * translation[1], 0]),
+            Color.white));
         gl.drawArrays(gl.LINES, 0, debugTextBuffer.length);
     }
 
-    program.staticUniforms.set(program.uniforms, {
-        u_color: [0, 0, 0, 1],
-        u_matrix: posMatrix
-    });
+    program.fixedUniforms.set(program.uniforms, debugUniformValues(posMatrix, Color.black));
     gl.drawArrays(gl.LINES, 0, debugTextBuffer.length);
 }
 

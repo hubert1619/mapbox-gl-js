@@ -7,7 +7,6 @@ const {
     Uniforms
 } = require('../uniform_binding');
 
-import type Program from '../program';
 import type Context from '../../gl/context';
 
 const patternUniforms = (context: Context) => {
@@ -27,6 +26,6 @@ const patternUniforms = (context: Context) => {
         'u_pixel_coord_lower': new Uniform2fv(context),
         'u_tile_units_to_pixels': new Uniform1f(context)
     });
-}
+};
 
 module.exports = { patternUniforms };

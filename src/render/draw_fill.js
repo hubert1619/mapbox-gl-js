@@ -3,14 +3,18 @@
 const pattern = require('./pattern');
 const Color = require('../style-spec/util/color');
 const DepthMode = require('../gl/depth_mode');
-const util = require('../util/util');
+const {
+    fillUniformValues,
+    fillPatternUniformValues,
+    fillOutlineUniformValues,
+    fillOutlinePatternUniformValues
+} = require('./program/fill_program');
 
 import type Painter from './painter';
 import type SourceCache from '../source/source_cache';
 import type FillStyleLayer from '../style/style_layer/fill_style_layer';
 import type FillBucket from '../data/bucket/fill_bucket';
 import type {OverscaledTileID} from '../source/tile_id';
-import type {CrossFaded} from '../style/cross_faded';
 
 module.exports = drawFill;
 
@@ -23,7 +27,7 @@ function drawFill(painter: Painter, sourceCache: SourceCache, layer: FillStyleLa
     }
 
     const context = painter.context;
-    context.setColorMode(painter.colorModeForRenderPass());
+    const colorMode = painter.colorModeForRenderPass();
 
     const pass = (!layer.paint.get('fill-pattern') &&
         color.constantOr(Color.transparent).a === 1 &&
@@ -31,10 +35,9 @@ function drawFill(painter: Painter, sourceCache: SourceCache, layer: FillStyleLa
 
     // Draw fill
     if (painter.renderPass === pass) {
-        // Once we switch to earcut drawing we can pull most of the WebGL setup
-        // outside of this coords loop.
-        context.setDepthMode(painter.depthModeForSublayer(1, painter.renderPass === 'opaque' ? DepthMode.ReadWrite : DepthMode.ReadOnly));
-        drawFillTiles(painter, sourceCache, layer, coords, drawFillTile);
+        const depthMode = painter.depthModeForSublayer(
+            1, painter.renderPass === 'opaque' ? DepthMode.ReadWrite : DepthMode.ReadOnly);
+        drawFillTiles(painter, sourceCache, layer, coords, depthMode, colorMode, true);
     }
 
     // Draw stroke
@@ -49,87 +52,67 @@ function drawFill(painter: Painter, sourceCache: SourceCache, layer: FillStyleLa
         // or stroke color is translucent. If we wouldn't clip to outside
         // the current shape, some pixels from the outline stroke overlapped
         // the (non-antialiased) fill.
-        context.setDepthMode(painter.depthModeForSublayer(
-            layer.getPaintProperty('fill-outline-color') ? 2 : 0, DepthMode.ReadOnly));
-        drawFillTiles(painter, sourceCache, layer, coords, drawStrokeTile);
+        const depthMode = painter.depthModeForSublayer(
+            layer.getPaintProperty('fill-outline-color') ? 2 : 0, DepthMode.ReadOnly);
+        drawFillTiles(painter, sourceCache, layer, coords, depthMode, colorMode, false);
     }
 }
 
-function drawFillTiles(painter, sourceCache, layer, coords, drawFn) {
-    if (pattern.isPatternMissing(layer.paint.get('fill-pattern'), painter)) return;
+function drawFillTiles(painter, sourceCache, layer, coords, depthMode, colorMode, fillTiles) {
+    const gl = painter.context.gl;
 
-    let firstTile = true;
+    const image = layer.paint.get('fill-pattern');
+    if (pattern.isPatternMissing(image, painter)) return;
+
+    let drawMode, programName, uniformValues, indexBuffer, segments;
+
+    if (fillTiles) {
+        programName = image ? 'fillPattern' : 'fill';
+        drawMode = gl.TRIANGLES;
+    } else {
+        programName = image ? 'fillOutlinePattern' : 'fillOutline';
+        drawMode = gl.LINES;
+    }
+
     for (const coord of coords) {
         const tile = sourceCache.getTile(coord);
         const bucket: ?FillBucket = (tile.getBucket(layer): any);
         if (!bucket) continue;
 
-        painter.context.setStencilMode(painter.stencilModeForClipping(coord));
-        drawFn(painter, sourceCache, layer, tile, coord, bucket, firstTile);
-        firstTile = false;
-    }
-}
+        const programConfiguration = bucket.programConfigurations.get(layer.id);
+        const program = painter.useProgram(programName, programConfiguration);
 
-function drawFillTile(painter, sourceCache, layer, tile, coord, bucket, firstTile) {
-    const gl = painter.context.gl;
-    const programConfiguration = bucket.programConfigurations.get(layer.id);
+        const tileMatrix = painter.translatePosMatrix(coord.posMatrix, tile,
+            layer.paint.get('fill-translate'), layer.paint.get('fill-translate-anchor'));
 
-    const program = setFillProgram('fill', layer.paint.get('fill-pattern'), painter, programConfiguration, layer, tile, coord, firstTile);
-
-    program.draw(
-        painter.context,
-        gl.TRIANGLES,
-        layer.id,
-        bucket.layoutVertexBuffer,
-        bucket.indexBuffer,
-        bucket.segments,
-        programConfiguration);
-}
-
-function drawStrokeTile(painter, sourceCache, layer, tile, coord, bucket, firstTile) {
-    const gl = painter.context.gl;
-    const programConfiguration = bucket.programConfigurations.get(layer.id);
-    const pattern = layer.getPaintProperty('fill-outline-color') ? null : layer.paint.get('fill-pattern');
-
-    const program = setFillProgram('fillOutline', pattern, painter, programConfiguration, layer, tile, coord, firstTile);
-    program.staticUniforms.set(program.uniforms, {
-        u_world: [gl.drawingBufferWidth, gl.drawingBufferHeight]
-    });
-
-    program.draw(
-        painter.context,
-        gl.LINES,
-        layer.id,
-        bucket.layoutVertexBuffer,
-        bucket.indexBuffer2,
-        bucket.segments2,
-        programConfiguration);
-}
-
-function setFillProgram(programId, pat: ?CrossFaded<string>, painter, programConfiguration, layer, tile, coord, firstTile) {
-    let program;
-    const prevProgram = painter.context.program.get();
-    if (!pat) {
-        program = painter.useProgram(programId, programConfiguration);
-        if (firstTile || program.program !== prevProgram) {
-            programConfiguration.setUniforms(painter.context, program, layer.paint, {zoom: painter.transform.zoom});
+        if (fillTiles) {
+            indexBuffer = bucket.indexBuffer;
+            segments = bucket.segments;
+            uniformValues = image ?
+                fillPatternUniformValues(tileMatrix, painter, image, tile) :
+                fillUniformValues(tileMatrix);
+        } else {
+            indexBuffer = bucket.indexBuffer2;
+            segments = bucket.segments2;
+            const drawingBufferSize = [gl.drawingBufferWidth, gl.drawingBufferHeight];
+            uniformValues = image ?
+                fillOutlinePatternUniformValues(tileMatrix, painter, image, tile, drawingBufferSize) :
+                fillOutlineUniformValues(tileMatrix, drawingBufferSize);
         }
-    } else {
-        program = painter.useProgram(`${programId}Pattern`, programConfiguration);
-        if (firstTile || program.program !== prevProgram) {
-            programConfiguration.setUniforms(painter.context, program, layer.paint, {zoom: painter.transform.zoom});
-        }
-        program.staticUniforms.set(program.uniforms, util.extend(
-            pattern.prepare(pat, painter, program),
-            pattern.setTile(tile, painter, program)
-        ));
+
+        program._draw(
+            painter.context,
+            drawMode,
+            depthMode,
+            painter.stencilModeForClipping(coord),
+            colorMode,
+            uniformValues,
+            layer.id,
+            bucket.layoutVertexBuffer,
+            indexBuffer,
+            segments,
+            layer.paint,
+            painter.transform.zoom,
+            programConfiguration);
     }
-    program.staticUniforms.set(program.uniforms, {
-        u_matrix: painter.translatePosMatrix(
-            coord.posMatrix, tile,
-            layer.paint.get('fill-translate'),
-            layer.paint.get('fill-translate-anchor')
-        )
-    });
-    return program;
 }

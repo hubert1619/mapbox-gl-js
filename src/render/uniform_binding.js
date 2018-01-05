@@ -26,7 +26,7 @@ class Uniform<T> {
         let diff = false;
         if (!this.current && v) {
             diff = true;
-        } else if (Array.isArray(this.current) && Array.isArray(v)) {
+        } else if (Array.isArray(this.current) && Array.isArray(v) && this.current !== v) {
             for (let i = 0; i < this.current.length; i++) {
                 if (this.current[i] !== v[i]) {
                     diff = true;
@@ -43,7 +43,7 @@ class Uniform<T> {
         }
     }
 
-    _set(location: WebGLUniformLocation, v: T) {}
+    _set(location: WebGLUniformLocation, v: T) {}  // eslint-disable-line
 }
 
 class Uniform1i extends Uniform<number> implements UniformInterface<number> {
@@ -91,7 +91,7 @@ class Uniforms {
 
     set(uniformLocations: UniformLocations, uniformValues: UniformValues) {
         for (const name in uniformValues) {
-            assert(this.bindings[name]);
+            assert(this.bindings[name], `No binding with name ${name}`);
             this.bindings[name].set(uniformLocations[name], uniformValues[name]);
         }
     }
