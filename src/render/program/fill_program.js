@@ -6,7 +6,7 @@ const {
     UniformMatrix4fv,
     Uniforms
 } = require('../uniform_binding');
-const pattern = require('../pattern');
+const pattern = require('./pattern');
 const util = require('../../util/util');
 
 import type Painter from '../painter';
@@ -44,30 +44,34 @@ function fillUniformValues(matrix: Float32Array): UniformValues {
     };
 }
 
-function fillPatternUniformValues(matrix: Float32Array,
-                                  painter: Painter,
-                                  image: CrossFaded<string>,
-                                  tile: {tileID: OverscaledTileID, tileSize: number}): UniformValues {
+function fillPatternUniformValues(
+    matrix: Float32Array,
+    painter: Painter,
+    image: CrossFaded<string>,
+    tile: {tileID: OverscaledTileID, tileSize: number}
+): UniformValues {
     return util.extend(fillUniformValues(matrix),
         pattern.prepare(image, painter),
         pattern.setTile(tile, painter));
 }
-// TODO wondering if this will be a perf hit we don't want (setting the non-tile-specific pattern uniforms -- .prepare -- on each tile)
-// TODO check this
 
-function fillOutlineUniformValues(matrix: Float32Array,
-                                  drawingBufferSize: Array<number>): UniformValues {
+function fillOutlineUniformValues(
+    matrix: Float32Array,
+    drawingBufferSize: Array<number>
+): UniformValues {
     return {
         'u_matrix': matrix,
         'u_world': drawingBufferSize
     };
 }
 
-function fillOutlinePatternUniformValues(matrix: Float32Array,
-                                         painter: Painter,
-                                         image: CrossFaded<string>,
-                                         tile: {tileID: OverscaledTileID, tileSize: number},
-                                         drawingBufferSize: Array<number>): UniformValues {
+function fillOutlinePatternUniformValues(
+    matrix: Float32Array,
+    painter: Painter,
+    image: CrossFaded<string>,
+    tile: {tileID: OverscaledTileID, tileSize: number},
+    drawingBufferSize: Array<number>
+): UniformValues {
     return util.extend(fillPatternUniformValues(matrix, painter, image, tile), {
         'u_world': drawingBufferSize
     });

@@ -13,7 +13,7 @@ import type Context from '../../gl/context';
 import type {UniformValues} from '../uniform_binding';
 import type RasterStyleLayer from '../../style/style_layer/raster_style_layer';
 
-const rasterUniforms = (context: Context) => {
+const rasterUniforms = (context: Context): Uniforms => {
     return new Uniforms({
         'u_matrix': new UniformMatrix4fv(context),
         'u_tl_parent': new Uniform2fv(context),
@@ -32,11 +32,13 @@ const rasterUniforms = (context: Context) => {
 };
 
 
-function rasterUniformValues(matrix: Float32Array,
-                             parentTL: Array<number>,
-                             parentScaleBy: number,
-                             fade: {mix: number, opacity: number},
-                             layer: RasterStyleLayer): UniformValues {
+function rasterUniformValues(
+    matrix: Float32Array,
+    parentTL: Array<number>,
+    parentScaleBy: number,
+    fade: {mix: number, opacity: number},
+    layer: RasterStyleLayer
+): UniformValues {
     return {
         'u_matrix': matrix,
         'u_tl_parent': parentTL,

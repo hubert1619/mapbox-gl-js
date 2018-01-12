@@ -1,11 +1,8 @@
 // @flow
 
-const glMatrix = require('@mapbox/gl-matrix');
-const pattern = require('./pattern');
 const Texture = require('./texture');
 const Color = require('../style-spec/util/color');
 const DepthMode = require('../gl/depth_mode');
-const mat4 = glMatrix.mat4;
 const StencilMode = require('../gl/stencil_mode');
 const {
     fillExtrusionUniformValues,
@@ -80,26 +77,23 @@ function drawExtrusionTexture(painter, layer) {
 
     const context = painter.context;
     const gl = context.gl;
-    const program = painter.useProgram('extrusionTexture');
-
-    context.setStencilMode(StencilMode.disabled);
-    context.setDepthMode(DepthMode.disabled);
-    context.setColorMode(painter.colorModeForRenderPass());
 
     context.activeTexture.set(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, renderedTexture.colorAttachment.get());
 
-    const matrix = mat4.create();
-    mat4.ortho(matrix, 0, painter.width, painter.height, 0, 0, 1);
-
-    program.fixedUniforms.set(program.uniforms, extrusionTextureUniformValues(
-        matrix, [gl.drawingBufferWidth, gl.drawingBufferHeight],
-        0, layer.paint.get('fill-extrusion-opacity')));
-
-    // TODO refactor drawArrays into program.draw
-
-    painter.viewportVAO.bind(context, program, painter.viewportBuffer, []);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    painter.useProgram('extrusionTexture').draw(
+        context,
+        gl.TRIANGLES,
+        DepthMode.disabled,
+        StencilMode.disabled,
+        painter.colorModeForRenderPass(),
+        extrusionTextureUniformValues(painter, layer, 0),
+        layer.id,
+        painter.viewportBuffer,
+        painter.quadTriangleIndexBuffer,
+        painter.viewportSegments,
+        layer.paint,
+        painter.transform.zoom);
 }
 
 function drawExtrusion(painter, source, layer, tile, coord, bucket, depthMode, stencilMode, colorMode) {
@@ -109,7 +103,7 @@ function drawExtrusion(painter, source, layer, tile, coord, bucket, depthMode, s
     const programConfiguration = bucket.programConfigurations.get(layer.id);
 
     const image = layer.paint.get('fill-extrusion-pattern');
-    if (image && pattern.isPatternMissing(image, painter)) return;
+    if (image && painter.isPatternMissing(image)) return;
 
     const program = painter.useProgram(image ? 'fillExtrusionPattern' : 'fillExtrusion', programConfiguration);
 
@@ -123,7 +117,7 @@ function drawExtrusion(painter, source, layer, tile, coord, bucket, depthMode, s
         fillExtrusionPatternUniformValues(matrix, painter, coord, image, tile) :
         fillExtrusionUniformValues(matrix, painter);
 
-    program._draw(
+    program.draw(
             context,
             gl.TRIANGLES,
             depthMode,
@@ -134,7 +128,6 @@ function drawExtrusion(painter, source, layer, tile, coord, bucket, depthMode, s
             bucket.layoutVertexBuffer,
             bucket.indexBuffer,
             bucket.segments,
-            // paint property binders,
             layer.paint,
             painter.transform.zoom,
             programConfiguration);

@@ -149,7 +149,7 @@ function drawLayerSymbols(painter, sourceCache, layer, coords, isText, translate
 function drawSymbolElements(buffers, layer, painter, program, depthMode, stencilMode, colorMode, uniformValues) {
     const context = painter.context;
     const gl = context.gl;
-    program._draw(
+    program.draw(
         context,
         gl.TRIANGLES,
         depthMode,

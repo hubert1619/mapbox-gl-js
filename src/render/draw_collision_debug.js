@@ -28,7 +28,7 @@ function drawCollisionDebugGeometry(painter: Painter, sourceCache: SourceCache, 
             context.lineWidth.set(1);
         }
 
-        program._draw(
+        program.draw(
             context,
             drawCircles ? gl.TRIANGLES : gl.LINES,
             DepthMode.disabled,

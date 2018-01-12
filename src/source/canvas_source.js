@@ -3,7 +3,7 @@
 const ImageSource = require('./image_source');
 const window = require('../util/window');
 const rasterBoundsAttributes = require('../data/raster_bounds_attributes');
-const VertexArrayObject = require('../render/vertex_array_object');
+const {SegmentVector} = require('../data/segment');
 const Texture = require('../render/texture');
 
 import type Map from '../ui/map';
@@ -151,8 +151,8 @@ class CanvasSource extends ImageSource {
             this.boundsBuffer = context.createVertexBuffer(this._boundsArray, rasterBoundsAttributes.members);
         }
 
-        if (!this.boundsVAO) {
-            this.boundsVAO = new VertexArrayObject();
+        if (!this.boundsSegments) {
+            this.boundsSegments = SegmentVector.simpleSegment(0, 0, 4, 2);
         }
 
         if (!this.texture) {

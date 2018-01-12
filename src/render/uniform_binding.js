@@ -96,7 +96,7 @@ class Uniforms {
         }
     }
 
-    concatenate(otherUniforms: Uniforms) {      // TODO check copying overhead -- maybe not
+    concatenate(otherUniforms: Uniforms) {      // review: check copying overhead -- maybe not
         this.bindings = util.extend(this.bindings, otherUniforms.bindings);
         return this;
     }

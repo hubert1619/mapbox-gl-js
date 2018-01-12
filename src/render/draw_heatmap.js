@@ -1,6 +1,5 @@
 // @flow
 
-const mat4 = require('@mapbox/gl-matrix').mat4;
 const Texture = require('./texture');
 const Color = require('../style-spec/util/color');
 const DepthMode = require('../gl/depth_mode');
@@ -58,7 +57,7 @@ function drawHeatmap(painter: Painter, sourceCache: SourceCache, layer: HeatmapS
                 first = false;
             }
 
-            program._draw(
+            program.draw(
                 context,
                 gl.TRIANGLES,
                 depthMode,
@@ -145,21 +144,17 @@ function renderTextureToMap(painter, layer) {
     }
     colorRampTexture.bind(gl.LINEAR, gl.CLAMP_TO_EDGE);
 
-    context.setDepthMode(DepthMode.disabled);
-    context.setStencilMode(StencilMode.disabled);
-    context.setColorMode(painter.colorModeForRenderPass());
-
-    const program = painter.useProgram('heatmapTexture');
-
-    const matrix = mat4.create();
-    mat4.ortho(matrix, 0, painter.width, painter.height, 0, 0, 1);
-
-    program.fixedUniforms.set(program.uniforms, heatmapTextureUniformValues(
-        matrix, [gl.drawingBufferWidth, gl.drawingBufferHeight], 0, 1,
-        layer.paint.get('heatmap-opacity')));
-
-    painter.viewportVAO.bind(painter.context, program, painter.viewportBuffer, []);
-
-    // TODO _draw with arrays
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    painter.useProgram('heatmapTexture').draw(
+        context,
+        gl.TRIANGLES,
+        DepthMode.disabled,
+        StencilMode.disabled,
+        painter.colorModeForRenderPass(),
+        heatmapTextureUniformValues(painter, layer, 0, 1),
+        layer.id,
+        painter.viewportBuffer,
+        painter.quadTriangleIndexBuffer,
+        painter.viewportSegments,
+        layer.paint,
+        painter.transform.zoom);
 }

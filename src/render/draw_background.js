@@ -1,6 +1,5 @@
 // @flow
 
-const pattern = require('./pattern');
 const StencilMode = require('../gl/stencil_mode');
 const DepthMode = require('../gl/depth_mode');
 const {backgroundUniformValues, backgroundPatternUniformValues} = require('./program/background_program');
@@ -22,35 +21,36 @@ function drawBackground(painter: Painter, sourceCache: SourceCache, layer: Backg
     const transform = painter.transform;
     const tileSize = transform.tileSize;
     const image = layer.paint.get('background-pattern');
+    if (painter.isPatternMissing(image)) return;
 
     const pass = (!image && color.a === 1 && opacity === 1) ? 'opaque' : 'translucent';
     if (painter.renderPass !== pass) return;
 
-    context.setStencilMode(StencilMode.disabled);
-    context.setDepthMode(painter.depthModeForSublayer(0, pass === 'opaque' ? DepthMode.ReadWrite : DepthMode.ReadOnly));
-    context.setColorMode(painter.colorModeForRenderPass());
+    const stencilMode = StencilMode.disabled;
+    const depthMode = painter.depthModeForSublayer(0, pass === 'opaque' ? DepthMode.ReadWrite : DepthMode.ReadOnly);
+    const colorMode = painter.colorModeForRenderPass();
 
-    let program;
-    if (image) {
-        if (pattern.isPatternMissing(image, painter)) return;
-        program = painter.useProgram('backgroundPattern');
-        painter.tileExtentPatternVAO.bind(context, program, painter.tileExtentBuffer, []);
-    } else {
-        program = painter.useProgram('background');
-        painter.tileExtentVAO.bind(context, program, painter.tileExtentBuffer, []);
-    }
+    const program = painter.useProgram(image ? 'backgroundPattern' : 'background');
 
     const tileIDs = transform.coveringTiles({tileSize});
 
     for (const tileID of tileIDs) {
         const matrix = painter.transform.calculatePosMatrix(tileID.toUnwrapped());
-        if (image) {
-            program.fixedUniforms.set(program.uniforms, backgroundPatternUniformValues(matrix, opacity, painter, image, {tileID, tileSize}));
-        } else {
-            program.fixedUniforms.set(program.uniforms, backgroundUniformValues(matrix, opacity, color));   // TODO should these take painter + tileID args rather than calculating the pos matrix here? probably
-        }
-        // TODO eventually we'll want to be able to draw arrays in program.draw as well
-        // refactor this later
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, painter.tileExtentBuffer.length);
+
+        const uniformValues = image ?
+            backgroundPatternUniformValues(matrix, opacity, painter, image, {tileID, tileSize}) :
+            backgroundUniformValues(matrix, opacity, color);
+
+        program.draw(
+            context,
+            gl.TRIANGLES,
+            depthMode,
+            stencilMode,
+            colorMode,
+            uniformValues,
+            layer.id,
+            painter.tileExtentBuffer,
+            painter.quadTriangleIndexBuffer,
+            painter.tileExtentSegments);
     }
 }

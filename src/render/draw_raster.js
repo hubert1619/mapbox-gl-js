@@ -25,10 +25,6 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
 
     const stencilMode = StencilMode.disabled;
     const colorMode = painter.colorModeForRenderPass();
-
-    // TODO we could keep some of the uniform calculation here (saturationFactor, contrastFactor, spinWeights) rather
-    // than moving to raster_program in order to save a tiny amount of compute time per tile -- ??
-
     const minTileZ = coords.length && coords[0].overscaledZ;
 
     for (const coord of coords) {
@@ -64,12 +60,19 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
         const uniformValues = rasterUniformValues(posMatrix, parentTL || [0, 0], parentScaleBy || 1, fade, layer);
 
         if (source instanceof ImageSource) {
-            const buffer = source.boundsBuffer;
-            const vao = source.boundsVAO;
-            vao.bind(context, program, buffer, []);
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, buffer.length);
+            program.draw(
+                context,
+                gl.TRIANGLES,
+                depthMode,
+                stencilMode,
+                colorMode,
+                uniformValues,
+                layer.id,
+                source.boundsBuffer,
+                painter.quadTriangleIndexBuffer,
+                source.boundsSegments);
         } else if (tile.maskedBoundsBuffer && tile.maskedIndexBuffer && tile.segments) {
-            program._draw(
+            program.draw(
                 context,
                 gl.TRIANGLES,
                 depthMode,
@@ -81,17 +84,19 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
                 tile.maskedIndexBuffer,
                 tile.segments,
                 layer.paint,
-                painter.transform.zoom,
-                null);
+                painter.transform.zoom);
         } else {
-            program.fixedUniforms.set(program.uniforms, uniformValues);
-            context.setDepthMode(depthMode);
-            context.setStencilMode(stencilMode);
-            context.setColorMode(colorMode);
-            const buffer = painter.rasterBoundsBuffer;
-            const vao = painter.rasterBoundsVAO;
-            vao.bind(context, program, buffer, []);
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, buffer.length);
+            program.draw(
+                context,
+                gl.TRIANGLES,
+                depthMode,
+                stencilMode,
+                colorMode,
+                uniformValues,
+                layer.id,
+                painter.rasterBoundsBuffer,
+                painter.quadTriangleIndexBuffer,
+                painter.rasterBoundsSegments);
         }
     }
 }

@@ -1,8 +1,5 @@
 // @flow
-const Coordinate = require('../geo/coordinate');
 const Texture = require('./texture');
-const EXTENT = require('../data/extent');
-const mat4 = require('@mapbox/gl-matrix').mat4;
 const StencilMode = require('../gl/stencil_mode');
 const DepthMode = require('../gl/depth_mode');
 const {hillshadeUniformValues, hillshadeUniformPrepareValues} = require('./program/hillshade_program');
@@ -20,30 +17,24 @@ function drawHillshade(painter: Painter, sourceCache: SourceCache, layer: Hillsh
     const context = painter.context;
     const sourceMaxZoom = sourceCache.getSource().maxzoom;
 
-    context.setDepthMode(painter.depthModeForSublayer(0, DepthMode.ReadOnly));
-    context.setStencilMode(StencilMode.disabled);
-    context.setColorMode(painter.colorModeForRenderPass());
+    const depthMode = painter.depthModeForSublayer(0, DepthMode.ReadOnly);
+    const stencilMode = StencilMode.disabled;
+    const colorMode = painter.colorModeForRenderPass();
 
     for (const tileID of tileIDs) {
         const tile = sourceCache.getTile(tileID);
         if (tile.needsHillshadePrepare && painter.renderPass === 'offscreen') {
-            prepareHillshade(painter, tile, sourceMaxZoom);
+            prepareHillshade(painter, tile, layer, sourceMaxZoom, depthMode, stencilMode, colorMode);
             continue;
         } else if (painter.renderPass === 'translucent') {
-            renderHillshade(painter, tile, layer);
+            renderHillshade(painter, tile, layer, depthMode, stencilMode, colorMode);
         }
     }
 
     context.viewport.set([0, 0, painter.width, painter.height]);
 }
 
-function getTileLatRange(painter, tileID: OverscaledTileID) {
-    const coordinate0 = tileID.toCoordinate();
-    const coordinate1 = new Coordinate(coordinate0.column, coordinate0.row + 1, coordinate0.zoom);
-    return [painter.transform.coordinateLocation(coordinate0).lat, painter.transform.coordinateLocation(coordinate1).lat];
-}
-
-function renderHillshade(painter, tile, layer) {
+function renderHillshade(painter, tile, layer, depthMode, stencilMode, colorMode) {
     const context = painter.context;
     const gl = context.gl;
     const fbo = tile.fbo;
@@ -51,47 +42,41 @@ function renderHillshade(painter, tile, layer) {
 
     const program = painter.useProgram('hillshade');
 
-    let azimuthal = layer.paint.get('hillshade-illumination-direction') * (Math.PI / 180);
-    // modify azimuthal angle by map rotation if light is anchored at the viewport
-    if (layer.paint.get('hillshade-illumination-anchor') === 'viewport')  azimuthal -= painter.transform.angle;
-
-    const posMatrix = painter.transform.calculatePosMatrix(tile.tileID.toUnwrapped(), true);
-    // for scaling the magnitude of a points slope by its latitude
-    const latRange = getTileLatRange(painter, tile.tileID);
     context.activeTexture.set(gl.TEXTURE0);
-
-    const shadowColor = layer.paint.get("hillshade-shadow-color");
-    const highlightColor = layer.paint.get("hillshade-highlight-color");
-    const accentColor = layer.paint.get("hillshade-accent-color");
-
     gl.bindTexture(gl.TEXTURE_2D, fbo.colorAttachment.get());
 
-    const uniformValues = hillshadeUniformValues(posMatrix, 0, latRange,
-        [layer.paint.get('hillshade-exaggeration'), azimuthal],
-        shadowColor, highlightColor, accentColor);
-    program.fixedUniforms.set(program.uniforms, uniformValues);
+    const uniformValues = hillshadeUniformValues(painter, tile, layer);
 
     if (tile.maskedBoundsBuffer && tile.maskedIndexBuffer && tile.segments) {
         program.draw(
             context,
             gl.TRIANGLES,
+            depthMode,
+            stencilMode,
+            colorMode,
+            uniformValues,
             layer.id,
             tile.maskedBoundsBuffer,
             tile.maskedIndexBuffer,
-            tile.segments
-        );
+            tile.segments);
     } else {
-        const buffer = painter.rasterBoundsBuffer;
-        const vao = painter.rasterBoundsVAO;
-        vao.bind(context, program, buffer, []);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, buffer.length);
+        program.draw(
+            context,
+            gl.TRIANGLES,
+            depthMode,
+            stencilMode,
+            colorMode,
+            uniformValues,
+            layer.id,
+            painter.rasterBoundsBuffer,
+            painter.quadTriangleIndexBuffer,
+            painter.rasterBoundsSegments);
     }
 }
 
-
 // hillshade rendering is done in two steps. the prepare step first calculates the slope of the terrain in the x and y
 // directions for each pixel, and saves those values to a framebuffer texture in the r and g channels.
-function prepareHillshade(painter, tile, sourceMaxZoom) {
+function prepareHillshade(painter, tile, layer, sourceMaxZoom, depthMode, stencilMode, colorMode) {
     const context = painter.context;
     const gl = context.gl;
     // decode rgba levels by using integer overflow to convert each Uint32Array element -> 4 Uint8Array elements.
@@ -139,21 +124,17 @@ function prepareHillshade(painter, tile, sourceMaxZoom) {
         context.bindFramebuffer.set(fbo.framebuffer);
         context.viewport.set([0, 0, tileSize, tileSize]);
 
-        const matrix = mat4.create();
-        // Flip rendering at y axis.
-        mat4.ortho(matrix, 0, EXTENT, -EXTENT, 0, 0, 1);
-        mat4.translate(matrix, matrix, [0, -EXTENT, 0]);
-
-        const program = painter.useProgram('hillshadePrepare');
-
-        program.fixedUniforms.set(program.uniforms, hillshadeUniformPrepareValues(
-            matrix, 1, [tileSize * 2, tileSize * 2], tile.tileID.overscaledZ, sourceMaxZoom));
-
-        const buffer = painter.rasterBoundsBuffer;
-        const vao = painter.rasterBoundsVAO;
-
-        vao.bind(context, program, buffer, []);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, buffer.length);
+        painter.useProgram('hillshadePrepare').draw(
+            context,
+            gl.TRIANGLES,
+            depthMode,
+            stencilMode,
+            colorMode,
+            hillshadeUniformPrepareValues(tile, sourceMaxZoom),
+            layer.id,
+            painter.rasterBoundsBuffer,
+            painter.quadTriangleIndexBuffer,
+            painter.rasterBoundsSegments);
 
         tile.needsHillshadePrepare = false;
     }

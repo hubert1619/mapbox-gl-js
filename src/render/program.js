@@ -18,7 +18,8 @@ import type {Uniforms, UniformValues, UniformLocations} from './uniform_binding'
 
 export type DrawMode =
     | $PropertyType<WebGLRenderingContext, 'LINES'>
-    | $PropertyType<WebGLRenderingContext, 'TRIANGLES'>;
+    | $PropertyType<WebGLRenderingContext, 'TRIANGLES'>
+    | $PropertyType<WebGLRenderingContext, 'LINE_STRIP'>;
 
 class Program {
     program: WebGLProgram;
@@ -96,46 +97,6 @@ class Program {
 
     draw(context: Context,
          drawMode: DrawMode,
-         layerID: string,
-         layoutVertexBuffer: VertexBuffer,
-         indexBuffer: IndexBuffer,
-         segments: SegmentVector,
-         configuration: ?ProgramConfiguration,
-         dynamicLayoutBuffer: ?VertexBuffer,
-         dynamicLayoutBuffer2: ?VertexBuffer) {
-
-        const gl = context.gl;
-
-        const primitiveSize = {
-            [gl.LINES]: 2,
-            [gl.TRIANGLES]: 3
-        }[drawMode];
-
-        for (const segment of segments.get()) {
-            const vaos = segment.vaos || (segment.vaos = {});
-            const vao: VertexArrayObject = vaos[layerID] || (vaos[layerID] = new VertexArrayObject());
-
-            vao.bind(
-                context,
-                this,
-                layoutVertexBuffer,
-                configuration ? configuration.getPaintVertexBuffers() : [],
-                indexBuffer,
-                segment.vertexOffset,
-                dynamicLayoutBuffer,
-                dynamicLayoutBuffer2
-            );
-
-            gl.drawElements(
-                drawMode,
-                segment.primitiveLength * primitiveSize,
-                gl.UNSIGNED_SHORT,
-                segment.primitiveOffset * primitiveSize * 2);
-        }
-    }
-
-    _draw(context: Context,
-         drawMode: DrawMode,
          depthMode: $ReadOnly<DepthMode>,
          stencilMode: $ReadOnly<StencilMode>,
          colorMode: $ReadOnly<ColorMode>,
@@ -144,9 +105,8 @@ class Program {
          layoutVertexBuffer: VertexBuffer,
          indexBuffer: IndexBuffer,
          segments: SegmentVector,
-         // paint prop binders, ?? or just use from ProgramConfiguration
          currentProperties: any,
-         zoom: number,
+         zoom: ?number,
          configuration: ?ProgramConfiguration,
          dynamicLayoutBuffer: ?VertexBuffer,
          dynamicLayoutBuffer2: ?VertexBuffer) {
@@ -158,11 +118,12 @@ class Program {
         context.setColorMode(colorMode);
 
         this.fixedUniforms.set(this.uniforms, uniformValues);
-        if (configuration) this.binderUniforms.set(this.uniforms, configuration.getUniforms(currentProperties, {zoom: zoom}));
+        if (configuration) this.binderUniforms.set(this.uniforms, configuration.getUniforms(currentProperties, {zoom: (zoom: any)}));
 
         const primitiveSize = {
             [gl.LINES]: 2,
-            [gl.TRIANGLES]: 3
+            [gl.TRIANGLES]: 3,
+            [gl.LINE_STRIP]: 1
         }[drawMode];
 
         for (const segment of segments.get()) {

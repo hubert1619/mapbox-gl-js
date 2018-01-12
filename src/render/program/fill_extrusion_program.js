@@ -13,7 +13,8 @@ const {
 const glMatrix = require('@mapbox/gl-matrix');
 const mat3 = glMatrix.mat3;
 const vec3 = glMatrix.vec3;
-const pattern = require('../pattern');
+const mat4 = glMatrix.mat4;
+const pattern = require('./pattern');
 const util = require('../../util/util');
 
 import type Context from '../../gl/context';
@@ -21,28 +22,35 @@ import type Painter from '../painter';
 import type {OverscaledTileID} from '../../source/tile_id';
 import type {CrossFaded} from '../../style/cross_faded';
 import type {UniformValues} from '../uniform_binding';
+import type FillExtrusionStyleLayer from '../../style/style_layer/fill_extrusion_style_layer';
 
-const fillExtrusionUniforms = (context: Context): Uniforms => new Uniforms({
-    'u_matrix': new UniformMatrix4fv(context),
-    'u_lightpos': new Uniform3fv(context),
-    'u_lightintensity': new Uniform1f(context),
-    'u_lightcolor': new Uniform3fv(context)
-});
+const fillExtrusionUniforms = (context: Context): Uniforms =>
+    new Uniforms({
+        'u_matrix': new UniformMatrix4fv(context),
+        'u_lightpos': new Uniform3fv(context),
+        'u_lightintensity': new Uniform1f(context),
+        'u_lightcolor': new Uniform3fv(context)
+    });
 
-const fillExtrusionPatternUniforms = (context: Context): Uniforms => fillExtrusionUniforms(context)
-    .concatenate(patternUniforms(context))
-    .concatenate(new Uniforms({
-        'u_height_factor': new Uniform1f(context)
-    }));
+const fillExtrusionPatternUniforms = (context: Context): Uniforms =>
+    fillExtrusionUniforms(context)
+        .concatenate(patternUniforms(context))
+        .concatenate(new Uniforms({
+            'u_height_factor': new Uniform1f(context)
+        }));
 
-const extrusionTextureUniforms = (context: Context): Uniforms => new Uniforms({
-    'u_matrix': new UniformMatrix4fv(context),
-    'u_world': new Uniform2fv(context),
-    'u_image': new Uniform1i(context),
-    'u_opacity': new Uniform1f(context)
-});
+const extrusionTextureUniforms = (context: Context): Uniforms =>
+    new Uniforms({
+        'u_matrix': new UniformMatrix4fv(context),
+        'u_world': new Uniform2fv(context),
+        'u_image': new Uniform1i(context),
+        'u_opacity': new Uniform1f(context)
+    });
 
-function fillExtrusionUniformValues(matrix: Float32Array, painter: Painter): UniformValues {
+function fillExtrusionUniformValues(
+    matrix: Float32Array,
+    painter: Painter
+): UniformValues {
     const light = painter.style.light;
     const _lp = light.properties.get('position');
     const lightPos = [_lp.x, _lp.y, _lp.z];
@@ -62,11 +70,13 @@ function fillExtrusionUniformValues(matrix: Float32Array, painter: Painter): Uni
     };
 }
 
-function fillExtrusionPatternUniformValues(matrix: Float32Array,
-                                           painter: Painter,
-                                           coord: OverscaledTileID,
-                                           image: CrossFaded<string>,
-                                           tile: {tileID: OverscaledTileID, tileSize: number}): UniformValues {
+function fillExtrusionPatternUniformValues(
+    matrix: Float32Array,
+    painter: Painter,
+    coord: OverscaledTileID,
+    image: CrossFaded<string>,
+    tile: {tileID: OverscaledTileID, tileSize: number}
+): UniformValues {
     return util.extend(fillExtrusionUniformValues(matrix, painter),
         pattern.prepare(image, painter),
         pattern.setTile(tile, painter),
@@ -75,15 +85,21 @@ function fillExtrusionPatternUniformValues(matrix: Float32Array,
         });
 }
 
-function extrusionTextureUniformValues(matrix: Float32Array,
-                                       drawingBufferSize: Array<number>,
-                                       textureUnit: number,
-                                       opacity: number): UniformValues {
+function extrusionTextureUniformValues(
+    painter: Painter,
+    layer: FillExtrusionStyleLayer,
+    textureUnit: number
+): UniformValues {
+    const matrix = mat4.create();
+    mat4.ortho(matrix, 0, painter.width, painter.height, 0, 0, 1);
+
+    const gl = painter.context.gl;
+
     return {
         'u_matrix': matrix,
-        'u_world': drawingBufferSize,
+        'u_world': [gl.drawingBufferWidth, gl.drawingBufferHeight],
         'u_image': textureUnit,
-        'u_opacity': opacity
+        'u_opacity': layer.paint.get('fill-extrusion-opacity')
     };
 }
 

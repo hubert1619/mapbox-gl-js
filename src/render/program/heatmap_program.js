@@ -8,10 +8,13 @@ const {
     Uniforms
 } = require('../uniform_binding');
 const pixelsToTileUnits = require('../../source/pixels_to_tile_units');
+const mat4 = require('@mapbox/gl-matrix').mat4;
 
 import type Context from '../../gl/context';
 import type Tile from '../../source/tile';
 import type {UniformValues} from '../uniform_binding';
+import type Painter from '../painter';
+import type HeatmapStyleLayer from '../../style/style_layer/heatmap_style_layer';
 
 const heatmapUniforms = (context: Context) => {
     return new Uniforms({
@@ -31,7 +34,12 @@ const heatmapTextureUniforms = (context: Context) => {
     });
 };
 
-function heatmapUniformValues(matrix: Float32Array, tile: Tile, zoom: number, intensity: number): UniformValues {
+function heatmapUniformValues(
+    matrix: Float32Array,
+    tile: Tile,
+    zoom: number,
+    intensity: number
+): UniformValues {
     return {
         'u_matrix': matrix,
         'u_extrude_scale': pixelsToTileUnits(tile, 1, zoom),
@@ -39,17 +47,23 @@ function heatmapUniformValues(matrix: Float32Array, tile: Tile, zoom: number, in
     };
 }
 
-function heatmapTextureUniformValues(matrix: Float32Array,
-                                     drawingBufferSize: Array<number>,
-                                     textureUnit: number,
-                                     colorRampUnit: number,
-                                     opacity: number): UniformValues {
+function heatmapTextureUniformValues(
+    painter: Painter,
+    layer: HeatmapStyleLayer,
+    textureUnit: number,
+    colorRampUnit: number
+): UniformValues {
+    const matrix = mat4.create();
+    mat4.ortho(matrix, 0, painter.width, painter.height, 0, 0, 1);
+
+    const gl = painter.context.gl;
+
     return {
         'u_matrix': matrix,
-        'u_world': drawingBufferSize,
+        'u_world': [gl.drawingBufferWidth, gl.drawingBufferHeight],
         'u_image': textureUnit,
         'u_color_ramp': colorRampUnit,
-        'u_opacity': opacity
+        'u_opacity': layer.paint.get('heatmap-opacity')
     };
 }
 

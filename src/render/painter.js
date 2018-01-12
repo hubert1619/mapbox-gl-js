@@ -6,14 +6,14 @@ const SourceCache = require('../source/source_cache');
 const EXTENT = require('../data/extent');
 const pixelsToTileUnits = require('../source/pixels_to_tile_units');
 const util = require('../util/util');
-const VertexArrayObject = require('./vertex_array_object');
-const {RasterBoundsArray, PosArray} = require('../data/array_types');
+const {SegmentVector} = require('../data/segment');
+const {RasterBoundsArray, PosArray, TriangleIndexArray, LineStripIndexArray} = require('../data/array_types');
 const rasterBoundsAttributes = require('../data/raster_bounds_attributes');
 const posAttributes = require('../data/pos_attributes');
 const {ProgramConfiguration} = require('../data/program_configuration');
 const CrossTileSymbolIndex = require('../symbol/cross_tile_symbol_index');
 const shaders = require('../shaders');
-const programs = require('./program/programs');     // TODO probably rename
+const programs = require('./program/programs');     // revisit: should this be renamed? (program_uniforms?)
 const Program = require('./program');
 const Context = require('../gl/context');
 const DepthMode = require('../gl/depth_mode');
@@ -42,10 +42,12 @@ import type Tile from '../source/tile';
 import type {OverscaledTileID} from '../source/tile_id';
 import type Style from '../style/style';
 import type StyleLayer from '../style/style_layer';
+import type {CrossFaded} from '../style/cross_faded';
 import type LineAtlas from './line_atlas';
 import type ImageManager from './image_manager';
 import type GlyphManager from './glyph_manager';
 import type VertexBuffer from '../gl/vertex_buffer';
+import type IndexBuffer from '../gl/index_buffer';
 import type {DepthMaskType, DepthFuncType} from '../gl/types';
 
 export type RenderPass = 'offscreen' | 'opaque' | 'translucent';
@@ -76,15 +78,17 @@ class Painter {
     depthRbo: WebGLRenderbuffer;
     depthRboNeedsClear: boolean;
     tileExtentBuffer: VertexBuffer;
-    tileExtentVAO: VertexArrayObject;
-    tileExtentPatternVAO: VertexArrayObject;
+    tileExtentSegments: SegmentVector;
     debugBuffer: VertexBuffer;
-    debugVAO: VertexArrayObject;
+    debugSegments: SegmentVector;
     rasterBoundsBuffer: VertexBuffer;
-    rasterBoundsVAO: VertexArrayObject;
+    rasterBoundsSegments: SegmentVector;
     viewportBuffer: VertexBuffer;
-    viewportVAO: VertexArrayObject;
+    viewportSegments: SegmentVector;
+    quadTriangleIndexBuffer: IndexBuffer;
+    tileBorderIndexBuffer: IndexBuffer;
     _tileClippingMaskIDs: { [number]: number };
+    stencilClearMode: StencilMode;
     style: Style;
     options: PainterOptions;
     lineAtlas: LineAtlas;
@@ -150,17 +154,15 @@ class Painter {
         tileExtentArray.emplaceBack(0, EXTENT);
         tileExtentArray.emplaceBack(EXTENT, EXTENT);
         this.tileExtentBuffer = context.createVertexBuffer(tileExtentArray, posAttributes.members);
-        this.tileExtentVAO = new VertexArrayObject();
-        this.tileExtentPatternVAO = new VertexArrayObject();
+        this.tileExtentSegments = SegmentVector.simpleSegment(0, 0, 4, 2);
 
         const debugArray = new PosArray();
         debugArray.emplaceBack(0, 0);
         debugArray.emplaceBack(EXTENT, 0);
-        debugArray.emplaceBack(EXTENT, EXTENT);
         debugArray.emplaceBack(0, EXTENT);
-        debugArray.emplaceBack(0, 0);
+        debugArray.emplaceBack(EXTENT, EXTENT);
         this.debugBuffer = context.createVertexBuffer(debugArray, posAttributes.members);
-        this.debugVAO = new VertexArrayObject();
+        this.debugSegments = SegmentVector.simpleSegment(0, 0, 4, 5);
 
         const rasterBoundsArray = new RasterBoundsArray();
         rasterBoundsArray.emplaceBack(0, 0, 0, 0);
@@ -168,7 +170,7 @@ class Painter {
         rasterBoundsArray.emplaceBack(0, EXTENT, 0, EXTENT);
         rasterBoundsArray.emplaceBack(EXTENT, EXTENT, EXTENT, EXTENT);
         this.rasterBoundsBuffer = context.createVertexBuffer(rasterBoundsArray, rasterBoundsAttributes.members);
-        this.rasterBoundsVAO = new VertexArrayObject();
+        this.rasterBoundsSegments = SegmentVector.simpleSegment(0, 0, 4, 2);
 
         const viewportArray = new PosArray();
         viewportArray.emplaceBack(0, 0);
@@ -176,7 +178,23 @@ class Painter {
         viewportArray.emplaceBack(0, 1);
         viewportArray.emplaceBack(1, 1);
         this.viewportBuffer = context.createVertexBuffer(viewportArray, posAttributes.members);
-        this.viewportVAO = new VertexArrayObject();
+        this.viewportSegments = SegmentVector.simpleSegment(0, 0, 4, 2);
+
+        const tileLineStripIndices = new LineStripIndexArray();
+        tileLineStripIndices.emplaceBack(0);
+        tileLineStripIndices.emplaceBack(1);
+        tileLineStripIndices.emplaceBack(3);
+        tileLineStripIndices.emplaceBack(2);
+        tileLineStripIndices.emplaceBack(0);
+        this.tileBorderIndexBuffer = context.createIndexBuffer(tileLineStripIndices);
+
+        const quadTriangleIndices = new TriangleIndexArray();
+        quadTriangleIndices.emplaceBack(0, 1, 2);
+        quadTriangleIndices.emplaceBack(2, 1, 3);
+        this.quadTriangleIndexBuffer = context.createIndexBuffer(quadTriangleIndices);
+
+        const gl = this.context.gl;
+        this.stencilClearMode = new StencilMode({ func: gl.ALWAYS, mask: 0 }, 0x0, 0xFF, gl.ZERO, gl.ZERO, gl.ZERO);
     }
 
     /*
@@ -192,19 +210,21 @@ class Painter {
         // effectively clearing the stencil buffer: once an upstream patch lands, remove
         // this function in favor of context.clear({ stencil: 0x0 })
 
-        context.setColorMode(ColorMode.disabled);
-        context.setDepthMode(DepthMode.disabled);
-        context.setStencilMode(new StencilMode({ func: gl.ALWAYS, mask: 0 }, 0x0, 0xFF, gl.ZERO, gl.ZERO, gl.ZERO));
-
         const matrix = mat4.create();
         mat4.ortho(matrix, 0, this.width, this.height, 0, 0, 1);
         mat4.scale(matrix, matrix, [gl.drawingBufferWidth, gl.drawingBufferHeight, 0]);
 
-        const program = this.useProgram('clippingMask');
-        program.fixedUniforms.set(program.uniforms, clippingMaskUniformValues(matrix));
-
-        this.viewportVAO.bind(context, program, this.viewportBuffer, []);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        this.useProgram('clippingMask').draw(
+            context,
+            gl.TRIANGLES,
+            DepthMode.disabled,
+            this.stencilClearMode,
+            ColorMode.disabled,
+            clippingMaskUniformValues(matrix),
+            '$clipping',
+            this.viewportBuffer,
+            this.quadTriangleIndexBuffer,
+            this.viewportSegments);
     }
 
     _renderTileClippingMasks(tileIDs: Array<OverscaledTileID>) {
@@ -214,21 +234,26 @@ class Painter {
         context.setColorMode(ColorMode.disabled);
         context.setDepthMode(DepthMode.disabled);
 
+        const program = this.useProgram('clippingMask');
+
         let idNext = 1;
         this._tileClippingMaskIDs = {};
 
         for (const tileID of tileIDs) {
             const id = this._tileClippingMaskIDs[tileID.key] = idNext++;
 
-            // Tests will always pass, and ref value will be written to stencil buffer.
-            context.setStencilMode(new StencilMode({ func: gl.ALWAYS, mask: 0 }, id, 0xFF, gl.KEEP, gl.KEEP, gl.REPLACE));
-
-            const program = this.useProgram('clippingMask');
-            program.fixedUniforms.set(program.uniforms, clippingMaskUniformValues(tileID.posMatrix));
-
-            // Draw the clipping mask
-            this.tileExtentVAO.bind(this.context, program, this.tileExtentBuffer, []);
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, this.tileExtentBuffer.length);
+            program.draw(
+                context,
+                gl.TRIANGLES,
+                DepthMode.disabled,
+                // Tests will always pass, and ref value will be written to stencil buffer.
+                new StencilMode({ func: gl.ALWAYS, mask: 0 }, id, 0xFF, gl.KEEP, gl.KEEP, gl.REPLACE),
+                ColorMode.disabled,
+                clippingMaskUniformValues(tileID.posMatrix),
+                '$clipping',
+                this.tileExtentBuffer,
+                this.quadTriangleIndexBuffer,
+                this.tileExtentSegments);
         }
     }
 
@@ -454,6 +479,18 @@ class Painter {
     getTileTexture(size: number) {
         const textures = this._tileTextures[size];
         return textures && textures.length > 0 ? textures.pop() : null;
+    }
+
+    /**
+     * Checks whether a pattern image is needed, and if it is, whether it is not loaded.
+     *
+     * @returns true if a needed image is missing and rendering needs to be skipped.
+     */
+    isPatternMissing(image: ?CrossFaded<string>): boolean {
+        if (!image) return false;
+        const imagePosA = this.imageManager.getPattern(image.from);
+        const imagePosB = this.imageManager.getPattern(image.to);
+        return !imagePosA || !imagePosB;
     }
 
     _createProgramCached(name: string, programConfiguration: ProgramConfiguration): Program {

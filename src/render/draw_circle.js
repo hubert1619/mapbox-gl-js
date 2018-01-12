@@ -42,22 +42,13 @@ function drawCircles(painter: Painter, sourceCache: SourceCache, layer: CircleSt
         const programConfiguration = bucket.programConfigurations.get(layer.id);
         const program = painter.useProgram('circle', programConfiguration);
 
-        program._draw(
+        program.draw(
             context,
             gl.TRIANGLES,
             depthMode,
             stencilMode,
             colorMode,
-            circleUniformValues(
-                painter.translatePosMatrix(
-                    coord.posMatrix,
-                    tile,
-                    layer.paint.get('circle-translate'),
-                    layer.paint.get('circle-translate-anchor')),
-                painter.transform,
-                tile,
-                layer.paint.get('circle-pitch-alignment') === 'map',
-                layer.paint.get('circle-pitch-scale') === 'map'),
+            circleUniformValues(painter, coord, tile, layer),
             layer.id,
             bucket.layoutVertexBuffer,
             bucket.indexBuffer,

@@ -7,7 +7,7 @@ const {
     UniformMatrix4fv,
     Uniforms
 } = require('../uniform_binding');
-const pattern = require('../pattern');
+const pattern = require('./pattern');
 const util = require('../../util/util');
 
 import type Painter from '../painter';
@@ -33,7 +33,11 @@ const backgroundPatternUniforms = (context: Context) => {
         }));
 };
 
-function backgroundUniformValues(matrix: Float32Array, opacity: number, color: Color): UniformValues {
+function backgroundUniformValues(
+    matrix: Float32Array,
+    opacity: number,
+    color: Color
+): UniformValues {
     return {
         'u_matrix': matrix,
         'u_opacity': opacity,
@@ -41,7 +45,13 @@ function backgroundUniformValues(matrix: Float32Array, opacity: number, color: C
     };
 }
 
-function backgroundPatternUniformValues(matrix: Float32Array, opacity: number, painter: Painter, image: CrossFaded<string>, tile: {tileID: OverscaledTileID, tileSize: number}): UniformValues {
+function backgroundPatternUniformValues(
+    matrix: Float32Array,
+    opacity: number,
+    painter: Painter,
+    image: CrossFaded<string>,
+    tile: {tileID: OverscaledTileID, tileSize: number}
+): UniformValues {
     return util.extend(pattern.prepare(image, painter),
         pattern.setTile(tile, painter),
         {

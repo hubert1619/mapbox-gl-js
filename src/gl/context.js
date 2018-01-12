@@ -37,7 +37,7 @@ const {
 } = require('./value');
 
 
-import type {TriangleIndexArray, LineIndexArray} from '../data/index_array_type';
+import type {TriangleIndexArray, LineIndexArray, LineStripIndexArray} from '../data/index_array_type';
 import type {
     StructArray,
     StructArrayMember
@@ -138,7 +138,7 @@ class Context {
 
     }
 
-    createIndexBuffer(array: TriangleIndexArray | LineIndexArray, dynamicDraw?: boolean) {
+    createIndexBuffer(array: TriangleIndexArray | LineIndexArray | LineStripIndexArray, dynamicDraw?: boolean) {
         return new IndexBuffer(this, array, dynamicDraw);
     }
 
