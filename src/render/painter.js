@@ -214,17 +214,11 @@ class Painter {
         mat4.ortho(matrix, 0, this.width, this.height, 0, 0, 1);
         mat4.scale(matrix, matrix, [gl.drawingBufferWidth, gl.drawingBufferHeight, 0]);
 
-        this.useProgram('clippingMask').draw(
-            context,
-            gl.TRIANGLES,
-            DepthMode.disabled,
-            this.stencilClearMode,
-            ColorMode.disabled,
+        this.useProgram('clippingMask').draw(context, gl.TRIANGLES,
+            DepthMode.disabled, this.stencilClearMode, ColorMode.disabled,
             clippingMaskUniformValues(matrix),
-            '$clipping',
-            this.viewportBuffer,
-            this.quadTriangleIndexBuffer,
-            this.viewportSegments);
+            '$clipping', this.viewportBuffer,
+            this.quadTriangleIndexBuffer, this.viewportSegments);
     }
 
     _renderTileClippingMasks(tileIDs: Array<OverscaledTileID>) {
@@ -242,18 +236,12 @@ class Painter {
         for (const tileID of tileIDs) {
             const id = this._tileClippingMaskIDs[tileID.key] = idNext++;
 
-            program.draw(
-                context,
-                gl.TRIANGLES,
-                DepthMode.disabled,
+            program.draw(context, gl.TRIANGLES, DepthMode.disabled,
                 // Tests will always pass, and ref value will be written to stencil buffer.
                 new StencilMode({ func: gl.ALWAYS, mask: 0 }, id, 0xFF, gl.KEEP, gl.KEEP, gl.REPLACE),
-                ColorMode.disabled,
-                clippingMaskUniformValues(tileID.posMatrix),
-                '$clipping',
-                this.tileExtentBuffer,
-                this.quadTriangleIndexBuffer,
-                this.tileExtentSegments);
+                ColorMode.disabled, clippingMaskUniformValues(tileID.posMatrix),
+                '$clipping', this.tileExtentBuffer,
+                this.quadTriangleIndexBuffer, this.tileExtentSegments);
         }
     }
 

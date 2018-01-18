@@ -17,7 +17,6 @@ import type Context from '../gl/context';
 import type {TypedStyleLayer} from '../style/style_layer/typed_style_layer';
 import type {StructArray, StructArrayMember} from '../util/struct_array';
 import type VertexBuffer from '../gl/vertex_buffer';
-import type Program from '../render/program';
 import type {Feature, SourceExpression, CompositeExpression} from '../style-spec/expression';
 import type {PossiblyEvaluated} from '../style/properties';
 import type {UniformValues} from '../render/uniform_binding';
@@ -63,11 +62,6 @@ interface Binder<T> {
 
     defines(): Array<string>;
 
-    setUniforms(context: Context,
-                program: Program,
-                globals: GlobalProperties,
-                currentValue: PossiblyEvaluatedPropertyValue<T>): void;
-
     getUniforms(globals: GlobalProperties,
                 currentValue: PossiblyEvaluatedPropertyValue<T>): number | Array<number>;
 }
@@ -94,19 +88,6 @@ class ConstantBinder<T> implements Binder<T> {
     populatePaintArray() {}
     upload() {}
     destroy() {}
-
-    setUniforms(context: Context,
-                program: Program,
-                globals: GlobalProperties,
-                currentValue: PossiblyEvaluatedPropertyValue<T>) {
-        const value: any = currentValue.constantOr(this.value);
-        const gl = context.gl;
-        if (this.type === 'color') {
-            gl.uniform4f(program.uniforms[`u_${this.name}`], value.r, value.g, value.b, value.a);
-        } else {
-            gl.uniform1f(program.uniforms[`u_${this.name}`], value);
-        }
-    }
 
     getUniforms(globals: GlobalProperties,
                 currentValue: PossiblyEvaluatedPropertyValue<T>): number | Array<number> {
@@ -178,10 +159,6 @@ class SourceExpressionBinder<T> implements Binder<T> {
         if (this.paintVertexBuffer) {
             this.paintVertexBuffer.destroy();
         }
-    }
-
-    setUniforms(context: Context, program: Program) {
-        context.gl.uniform1f(program.uniforms[`a_${this.name}_t`], 0);
     }
 
     getUniforms(): number {
@@ -268,10 +245,6 @@ class CompositeExpressionBinder<T> implements Binder<T> {
         }
     }
 
-    setUniforms(context: Context, program: Program, globals: GlobalProperties) {
-        context.gl.uniform1f(program.uniforms[`a_${this.name}_t`], this.interpolationFactor(globals.zoom));
-    }
-
     getUniforms(globals: GlobalProperties): number {
         return this.interpolationFactor(globals.zoom);
     }
@@ -354,13 +327,6 @@ class ProgramConfiguration {
             result.push.apply(result, this.binders[property].defines());
         }
         return result;
-    }
-
-    setUniforms<Properties: Object>(context: Context, program: Program, properties: PossiblyEvaluated<Properties>, globals: GlobalProperties) {
-        for (const property in this.binders) {
-            const binder = this.binders[property];
-            binder.setUniforms(context, program, globals, properties.get(property));
-        }
     }
 
     getPaintVertexBuffers(): Array<VertexBuffer> {

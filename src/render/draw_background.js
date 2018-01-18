@@ -2,7 +2,10 @@
 
 const StencilMode = require('../gl/stencil_mode');
 const DepthMode = require('../gl/depth_mode');
-const {backgroundUniformValues, backgroundPatternUniformValues} = require('./program/background_program');
+const {
+    backgroundUniformValues,
+    backgroundPatternUniformValues
+} = require('./program/background_program');
 
 import type Painter from './painter';
 import type SourceCache from '../source/source_cache';
@@ -41,16 +44,8 @@ function drawBackground(painter: Painter, sourceCache: SourceCache, layer: Backg
             backgroundPatternUniformValues(matrix, opacity, painter, image, {tileID, tileSize}) :
             backgroundUniformValues(matrix, opacity, color);
 
-        program.draw(
-            context,
-            gl.TRIANGLES,
-            depthMode,
-            stencilMode,
-            colorMode,
-            uniformValues,
-            layer.id,
-            painter.tileExtentBuffer,
-            painter.quadTriangleIndexBuffer,
-            painter.tileExtentSegments);
+        program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode,
+            uniformValues, layer.id, painter.tileExtentBuffer,
+            painter.quadTriangleIndexBuffer, painter.tileExtentSegments);
     }
 }

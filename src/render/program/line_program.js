@@ -19,15 +19,15 @@ import type {CrossFaded} from '../../style/cross_faded';
 import type LineStyleLayer from '../../style/style_layer/line_style_layer';
 import type Painter from '../painter';
 
-const lineUniforms = (context: Context) => {
+function lineUniforms(context: Context): Uniforms {
     return new Uniforms({
         'u_matrix': new UniformMatrix4fv(context),
         'u_ratio': new Uniform1f(context),
         'u_gl_units_to_pixels': new Uniform2fv(context)
     });
-};
+}
 
-const linePatternUniforms = (context: Context) => {
+function linePatternUniforms(context: Context): Uniforms {
     return lineUniforms(context)
         .concatenate(new Uniforms({
             'u_pattern_size_a': new Uniform2fv(context),
@@ -40,9 +40,9 @@ const linePatternUniforms = (context: Context) => {
             'u_pattern_br_b': new Uniform2fv(context),
             'u_fade': new Uniform1f(context)
         }));
-};
+}
 
-const lineSDFUniforms = (context: Context) => {
+function lineSDFUniforms(context: Context): Uniforms {
     return lineUniforms(context)
         .concatenate(new Uniforms({
             'u_patternscale_a': new Uniform2fv(context),
@@ -53,7 +53,7 @@ const lineSDFUniforms = (context: Context) => {
             'u_tex_y_b': new Uniform1f(context),
             'u_mix': new Uniform1f(context)
         }));
-};
+}
 
 function lineUniformValues(
     painter: Painter,

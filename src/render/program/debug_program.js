@@ -10,12 +10,12 @@ import type Context from '../../gl/context';
 import type {UniformValues} from '../uniform_binding';
 import type Color from '../../style-spec/util/color';
 
-const debugUniforms = (context: Context) => {
+function debugUniforms(context: Context): Uniforms {
     return new Uniforms({
         'u_color': new Uniform4fv(context),
         'u_matrix': new UniformMatrix4fv(context)
     });
-};
+}
 
 function debugUniformValues(matrix: Float32Array, color: Color): UniformValues {
     return {

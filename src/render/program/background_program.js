@@ -17,21 +17,21 @@ import type Color from '../../style-spec/util/color';
 import type {CrossFaded} from '../../style/cross_faded';
 import type {OverscaledTileID} from '../../source/tile_id';
 
-const backgroundUniforms = (context: Context) => {
+function backgroundUniforms(context: Context): Uniforms {
     return new Uniforms({
         'u_matrix': new UniformMatrix4fv(context),
         'u_opacity': new Uniform1f(context),
         'u_color': new Uniform4fv(context)
     });
-};
+}
 
-const backgroundPatternUniforms = (context: Context) => {
+function backgroundPatternUniforms(context: Context): Uniforms {
     return patternUniforms(context)
         .concatenate(new Uniforms({
             'u_matrix': new UniformMatrix4fv(context),
             'u_opacity': new Uniform1f(context)
         }));
-};
+}
 
 function backgroundUniformValues(
     matrix: Float32Array,
@@ -60,4 +60,9 @@ function backgroundPatternUniformValues(
         });
 }
 
-module.exports = { backgroundUniforms, backgroundPatternUniforms, backgroundUniformValues, backgroundPatternUniformValues };
+module.exports = {
+    backgroundUniforms,
+    backgroundPatternUniforms,
+    backgroundUniformValues,
+    backgroundPatternUniformValues
+};

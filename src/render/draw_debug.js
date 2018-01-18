@@ -63,7 +63,9 @@ function drawDebugTile(painter, sourceCache, coord) {
 
         program.draw(context, gl.LINES, depthMode, stencilMode, colorMode,
             debugUniformValues(
-                mat4.translate([], posMatrix, [onePixel * translation[0], onePixel * translation[1], 0]),
+                mat4.translate([], posMatrix, [
+                    onePixel * translation[0],
+                    onePixel * translation[1], 0]),
                 Color.white),
             id, debugTextBuffer, debugTextIndexBuffer, debugTextSegment);
     }

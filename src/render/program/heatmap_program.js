@@ -16,15 +16,15 @@ import type {UniformValues} from '../uniform_binding';
 import type Painter from '../painter';
 import type HeatmapStyleLayer from '../../style/style_layer/heatmap_style_layer';
 
-const heatmapUniforms = (context: Context) => {
+function heatmapUniforms(context: Context): Uniforms {
     return new Uniforms({
         'u_extrude_scale': new Uniform1f(context),
         'u_intensity': new Uniform1f(context),
         'u_matrix': new UniformMatrix4fv(context)
     });
-};
+}
 
-const heatmapTextureUniforms = (context: Context) => {
+function heatmapTextureUniforms(context: Context): Uniforms {
     return new Uniforms({
         'u_matrix': new UniformMatrix4fv(context),
         'u_world': new Uniform2fv(context),
@@ -32,7 +32,7 @@ const heatmapTextureUniforms = (context: Context) => {
         'u_color_ramp': new Uniform1i(context),
         'u_opacity': new Uniform1f(context)
     });
-};
+}
 
 function heatmapUniformValues(
     matrix: Float32Array,
@@ -67,4 +67,9 @@ function heatmapTextureUniformValues(
     };
 }
 
-module.exports = { heatmapUniforms, heatmapTextureUniforms, heatmapUniformValues, heatmapTextureUniformValues };
+module.exports = {
+    heatmapUniforms,
+    heatmapTextureUniforms,
+    heatmapUniformValues,
+    heatmapTextureUniformValues
+};

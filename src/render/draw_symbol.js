@@ -89,8 +89,6 @@ function drawLayerSymbols(painter, sourceCache, layer, coords, isText, translate
 
         if (!program) {
             program = painter.useProgram(isSDF ? 'symbolSDF' : 'symbolIcon', programConfiguration);
-            programConfiguration.setUniforms(painter.context, program, layer.paint, {zoom: painter.transform.zoom});
-
             size = symbolSize.evaluateSizeForZoom(sizeData, tr.zoom, symbolLayoutProperties.properties[isText ? 'text-size' : 'icon-size']);
         }
 
@@ -149,20 +147,9 @@ function drawLayerSymbols(painter, sourceCache, layer, coords, isText, translate
 function drawSymbolElements(buffers, layer, painter, program, depthMode, stencilMode, colorMode, uniformValues) {
     const context = painter.context;
     const gl = context.gl;
-    program.draw(
-        context,
-        gl.TRIANGLES,
-        depthMode,
-        stencilMode,
-        colorMode,
-        uniformValues,
-        layer.id,
-        buffers.layoutVertexBuffer,
-        buffers.indexBuffer,
-        buffers.segments,
-        layer.paint,
-        painter.transform.zoom,
-        buffers.programConfigurations.get(layer.id),
-        buffers.dynamicLayoutVertexBuffer,
-        buffers.opacityVertexBuffer);
+    program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode,
+        uniformValues, layer.id, buffers.layoutVertexBuffer,
+        buffers.indexBuffer, buffers.segments, layer.paint,
+        painter.transform.zoom, buffers.programConfigurations.get(layer.id),
+        buffers.dynamicLayoutVertexBuffer, buffers.opacityVertexBuffer);
 }

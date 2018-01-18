@@ -28,24 +28,15 @@ function drawCollisionDebugGeometry(painter: Painter, sourceCache: SourceCache, 
             context.lineWidth.set(1);
         }
 
-        program.draw(
-            context,
-            drawCircles ? gl.TRIANGLES : gl.LINES,
-            DepthMode.disabled,
-            StencilMode.disabled,
+        program.draw(context, drawCircles ? gl.TRIANGLES : gl.LINES,
+            DepthMode.disabled, StencilMode.disabled,
             painter.colorModeForRenderPass(),
             collisionUniformValues(
                 coord.posMatrix,
                 painter.transform,
                 tile),
-            layer.id,
-            buffers.layoutVertexBuffer,
-            buffers.indexBuffer,
-            buffers.segments,
-            null,
-            painter.transform.zoom,
-            null,
-            null,
+            layer.id, buffers.layoutVertexBuffer, buffers.indexBuffer,
+            buffers.segments, null, painter.transform.zoom, null, null,
             buffers.collisionVertexBuffer);
     }
 }

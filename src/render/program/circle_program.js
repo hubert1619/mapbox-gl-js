@@ -16,16 +16,18 @@ import type Tile from '../../source/tile';
 import type CircleStyleLayer from '../../style/style_layer/circle_style_layer';
 import type Painter from '../painter';
 
-const circleUniforms = (context: Context): Uniforms =>
-    new Uniforms({
+function circleUniforms(context: Context): Uniforms {
+    return new Uniforms({
         'u_camera_to_center_distance': new Uniform1f(context),
         'u_scale_with_map': new Uniform1i(context),
         'u_pitch_with_map': new Uniform1i(context),
         'u_extrude_scale': new Uniform2fv(context),
         'u_matrix': new UniformMatrix4fv(context)
     });
+}
 
-function circleUniformValues(painter: Painter,
+function circleUniformValues(
+    painter: Painter,
     coord: OverscaledTileID,
     tile: Tile,
     layer: CircleStyleLayer

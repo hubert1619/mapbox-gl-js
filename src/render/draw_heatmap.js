@@ -35,7 +35,6 @@ function drawHeatmap(painter: Painter, sourceCache: SourceCache, layer: HeatmapS
 
         context.clear({ color: Color.transparent });
 
-        let first = true;
         for (let i = 0; i < coords.length; i++) {
             const coord = coords[i];
 
@@ -48,29 +47,15 @@ function drawHeatmap(painter: Painter, sourceCache: SourceCache, layer: HeatmapS
             const bucket: ?HeatmapBucket = (tile.getBucket(layer): any);
             if (!bucket) continue;
 
-            const prevProgram = painter.context.program.get();
             const programConfiguration = bucket.programConfigurations.get(layer.id);
             const program = painter.useProgram('heatmap', programConfiguration);
             const {zoom} = painter.transform;
-            if (first || program.program !== prevProgram) {
-                programConfiguration.setUniforms(painter.context, program, layer.paint, {zoom});
-                first = false;
-            }
 
-            program.draw(
-                context,
-                gl.TRIANGLES,
-                depthMode,
-                stencilMode,
-                colorMode,
+            program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode,
                 heatmapUniformValues(coord.posMatrix,
                     tile, zoom, layer.paint.get('heatmap-intensity')),
-                layer.id,
-                bucket.layoutVertexBuffer,
-                bucket.indexBuffer,
-                bucket.segments,
-                layer.paint,
-                painter.transform.zoom,
+                layer.id, bucket.layoutVertexBuffer, bucket.indexBuffer,
+                bucket.segments, layer.paint, painter.transform.zoom,
                 programConfiguration);
         }
 
@@ -144,17 +129,9 @@ function renderTextureToMap(painter, layer) {
     }
     colorRampTexture.bind(gl.LINEAR, gl.CLAMP_TO_EDGE);
 
-    painter.useProgram('heatmapTexture').draw(
-        context,
-        gl.TRIANGLES,
-        DepthMode.disabled,
-        StencilMode.disabled,
-        painter.colorModeForRenderPass(),
+    painter.useProgram('heatmapTexture').draw(context, gl.TRIANGLES,
+        DepthMode.disabled, StencilMode.disabled, painter.colorModeForRenderPass(),
         heatmapTextureUniformValues(painter, layer, 0, 1),
-        layer.id,
-        painter.viewportBuffer,
-        painter.quadTriangleIndexBuffer,
-        painter.viewportSegments,
-        layer.paint,
-        painter.transform.zoom);
+        layer.id, painter.viewportBuffer, painter.quadTriangleIndexBuffer,
+        painter.viewportSegments, layer.paint, painter.transform.zoom);
 }

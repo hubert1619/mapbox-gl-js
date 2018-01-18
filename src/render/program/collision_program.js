@@ -13,7 +13,7 @@ import type {UniformValues} from '../uniform_binding';
 import type Transform from '../../geo/transform';
 import type Tile from '../../source/tile';
 
-const collisionUniforms = (context: Context) => {
+function collisionUniforms(context: Context): Uniforms {
     return new Uniforms({
         'u_matrix': new UniformMatrix4fv(context),
         'u_camera_to_center_distance': new Uniform1f(context),
@@ -21,7 +21,7 @@ const collisionUniforms = (context: Context) => {
         'u_extrude_scale': new Uniform2fv(context),
         'u_overscale_factor': new Uniform1f(context)
     });
-};
+}
 
 function collisionUniformValues(
     matrix: Float32Array,

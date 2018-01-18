@@ -13,7 +13,6 @@ import type IndexBuffer from '../gl/index_buffer';
 import type DepthMode from '../gl/depth_mode';
 import type StencilMode from '../gl/stencil_mode';
 import type ColorMode from '../gl/color_mode';
-// import type {PossiblyEvaluated, PossiblyEvaluatedPropertyValue} from '../style/properties';
 import type {Uniforms, UniformValues, UniformLocations} from './uniform_binding';
 
 export type DrawMode =

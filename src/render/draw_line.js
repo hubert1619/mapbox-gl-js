@@ -62,18 +62,8 @@ function drawLineTile(program, painter, tile, bucket, layer, coord, depthMode, c
         }
     }
 
-    program.draw(
-            context,
-            gl.TRIANGLES,
-            depthMode,
-            painter.stencilModeForClipping(coord),
-            colorMode,
-            uniformValues,
-            layer.id,
-            bucket.layoutVertexBuffer,
-            bucket.indexBuffer,
-            bucket.segments,
-            layer.paint,
-            painter.transform.zoom,
-            programConfiguration);
+    program.draw(context, gl.TRIANGLES, depthMode,
+        painter.stencilModeForClipping(coord), colorMode, uniformValues,
+        layer.id, bucket.layoutVertexBuffer, bucket.indexBuffer, bucket.segments,
+        layer.paint, painter.transform.zoom, programConfiguration);
 }

@@ -15,7 +15,7 @@ import type {CrossFaded} from '../../style/cross_faded';
 import type {UniformValues} from '../uniform_binding';
 import type Context from '../../gl/context';
 
-const patternUniforms = (context: Context) => {
+function patternUniforms(context: Context): Uniforms {
     return new Uniforms({
         'u_image': new Uniform1i(context),
         'u_pattern_tl_a': new Uniform2fv(context),
@@ -32,7 +32,7 @@ const patternUniforms = (context: Context) => {
         'u_pixel_coord_lower': new Uniform2fv(context),
         'u_tile_units_to_pixels': new Uniform1f(context)
     });
-};
+}
 
 function prepare(image: CrossFaded<string>, painter: Painter): UniformValues {
     const context = painter.context;
@@ -61,7 +61,10 @@ function prepare(image: CrossFaded<string>, painter: Painter): UniformValues {
     };
 }
 
-function setTile(tile: {tileID: OverscaledTileID, tileSize: number}, painter: Painter): UniformValues {
+function setTile(
+    tile: {tileID: OverscaledTileID, tileSize: number},
+    painter: Painter
+): UniformValues {
     const numTiles = Math.pow(2, tile.tileID.overscaledZ);
     const tileSizeAtNearestZoom = tile.tileSize * Math.pow(2, painter.transform.tileZoom) / numTiles;
 

@@ -81,19 +81,12 @@ function drawExtrusionTexture(painter, layer) {
     context.activeTexture.set(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, renderedTexture.colorAttachment.get());
 
-    painter.useProgram('extrusionTexture').draw(
-        context,
-        gl.TRIANGLES,
-        DepthMode.disabled,
-        StencilMode.disabled,
+    painter.useProgram('extrusionTexture').draw(context, gl.TRIANGLES,
+        DepthMode.disabled, StencilMode.disabled,
         painter.colorModeForRenderPass(),
         extrusionTextureUniformValues(painter, layer, 0),
-        layer.id,
-        painter.viewportBuffer,
-        painter.quadTriangleIndexBuffer,
-        painter.viewportSegments,
-        layer.paint,
-        painter.transform.zoom);
+        layer.id, painter.viewportBuffer, painter.quadTriangleIndexBuffer,
+        painter.viewportSegments, layer.paint, painter.transform.zoom);
 }
 
 function drawExtrusion(painter, source, layer, tile, coord, bucket, depthMode, stencilMode, colorMode) {
@@ -117,18 +110,8 @@ function drawExtrusion(painter, source, layer, tile, coord, bucket, depthMode, s
         fillExtrusionPatternUniformValues(matrix, painter, coord, image, tile) :
         fillExtrusionUniformValues(matrix, painter);
 
-    program.draw(
-            context,
-            gl.TRIANGLES,
-            depthMode,
-            stencilMode,
-            colorMode,
-            uniformValues,
-            layer.id,
-            bucket.layoutVertexBuffer,
-            bucket.indexBuffer,
-            bucket.segments,
-            layer.paint,
-            painter.transform.zoom,
-            programConfiguration);
+    program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode,
+        uniformValues, layer.id, bucket.layoutVertexBuffer, bucket.indexBuffer,
+        bucket.segments, layer.paint, painter.transform.zoom,
+        programConfiguration);
 }

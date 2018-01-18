@@ -60,43 +60,18 @@ function drawRaster(painter: Painter, sourceCache: SourceCache, layer: RasterSty
         const uniformValues = rasterUniformValues(posMatrix, parentTL || [0, 0], parentScaleBy || 1, fade, layer);
 
         if (source instanceof ImageSource) {
-            program.draw(
-                context,
-                gl.TRIANGLES,
-                depthMode,
-                stencilMode,
-                colorMode,
-                uniformValues,
-                layer.id,
-                source.boundsBuffer,
-                painter.quadTriangleIndexBuffer,
-                source.boundsSegments);
+            program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode,
+                uniformValues, layer.id, source.boundsBuffer,
+                painter.quadTriangleIndexBuffer, source.boundsSegments);
         } else if (tile.maskedBoundsBuffer && tile.maskedIndexBuffer && tile.segments) {
-            program.draw(
-                context,
-                gl.TRIANGLES,
-                depthMode,
-                stencilMode,
-                colorMode,
-                uniformValues,
-                layer.id,
-                tile.maskedBoundsBuffer,
-                tile.maskedIndexBuffer,
-                tile.segments,
-                layer.paint,
+            program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode,
+                uniformValues, layer.id, tile.maskedBoundsBuffer,
+                tile.maskedIndexBuffer, tile.segments, layer.paint,
                 painter.transform.zoom);
         } else {
-            program.draw(
-                context,
-                gl.TRIANGLES,
-                depthMode,
-                stencilMode,
-                colorMode,
-                uniformValues,
-                layer.id,
-                painter.rasterBoundsBuffer,
-                painter.quadTriangleIndexBuffer,
-                painter.rasterBoundsSegments);
+            program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode,
+                uniformValues, layer.id, painter.rasterBoundsBuffer,
+                painter.quadTriangleIndexBuffer, painter.rasterBoundsSegments);
         }
     }
 }

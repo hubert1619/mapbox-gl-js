@@ -24,28 +24,31 @@ import type {CrossFaded} from '../../style/cross_faded';
 import type {UniformValues} from '../uniform_binding';
 import type FillExtrusionStyleLayer from '../../style/style_layer/fill_extrusion_style_layer';
 
-const fillExtrusionUniforms = (context: Context): Uniforms =>
-    new Uniforms({
+function fillExtrusionUniforms(context: Context): Uniforms {
+    return new Uniforms({
         'u_matrix': new UniformMatrix4fv(context),
         'u_lightpos': new Uniform3fv(context),
         'u_lightintensity': new Uniform1f(context),
         'u_lightcolor': new Uniform3fv(context)
     });
+}
 
-const fillExtrusionPatternUniforms = (context: Context): Uniforms =>
-    fillExtrusionUniforms(context)
+function fillExtrusionPatternUniforms(context: Context): Uniforms {
+    return fillExtrusionUniforms(context)
         .concatenate(patternUniforms(context))
         .concatenate(new Uniforms({
             'u_height_factor': new Uniform1f(context)
         }));
+}
 
-const extrusionTextureUniforms = (context: Context): Uniforms =>
-    new Uniforms({
+function extrusionTextureUniforms(context: Context): Uniforms {
+    return new Uniforms({
         'u_matrix': new UniformMatrix4fv(context),
         'u_world': new Uniform2fv(context),
         'u_image': new Uniform1i(context),
         'u_opacity': new Uniform1f(context)
     });
+}
 
 function fillExtrusionUniformValues(
     matrix: Float32Array,

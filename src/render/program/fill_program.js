@@ -15,28 +15,28 @@ import type Context from '../../gl/context';
 import type {CrossFaded} from '../../style/cross_faded';
 import type {OverscaledTileID} from '../../source/tile_id';
 
-const fillUniforms = (context: Context) => {
+function fillUniforms(context: Context): Uniforms {
     return new Uniforms({
         'u_matrix': new UniformMatrix4fv(context),
     });
-};
+}
 
-const fillPatternUniforms = (context: Context) => {
+function fillPatternUniforms(context: Context): Uniforms {
     return fillUniforms(context)
         .concatenate(patternUniforms(context));
-};
+}
 
-const fillOutlineUniforms = (context: Context) => {
+function fillOutlineUniforms(context: Context): Uniforms {
     return fillUniforms(context)
         .concatenate(new Uniforms({
             'u_world': new Uniform2fv(context)
         }));
-};
+}
 
-const fillOutlinePatternUniforms = (context: Context) => {
+function fillOutlinePatternUniforms(context: Context): Uniforms {
     return fillOutlineUniforms(context)
         .concatenate(patternUniforms(context));
-};
+}
 
 function fillUniformValues(matrix: Float32Array): UniformValues {
     return {

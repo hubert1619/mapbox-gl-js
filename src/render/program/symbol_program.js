@@ -13,8 +13,8 @@ import type Context from '../../gl/context';
 import type Painter from '../painter';
 import type {UniformValues} from '../uniform_binding';
 
-const symbolIconUniforms = (context: Context) =>
-    new Uniforms({
+function symbolIconUniforms(context: Context): Uniforms {
+    return new Uniforms({
         'u_is_size_zoom_constant': new Uniform1i(context),
         'u_is_size_feature_constant': new Uniform1i(context),
         'u_size_t': new Uniform1f(context),
@@ -32,13 +32,15 @@ const symbolIconUniforms = (context: Context) =>
         'u_texsize': new Uniform2fv(context),
         'u_texture': new Uniform1i(context)
     });
+}
 
-const symbolSDFUniforms = (context: Context) =>
-    symbolIconUniforms(context)
+function symbolSDFUniforms(context: Context): Uniforms {
+    return symbolIconUniforms(context)
         .concatenate(new Uniforms({
             'u_gamma_scale': new Uniform1f(context),
             'u_is_halo': new Uniform1f(context)
         }));
+}
 
 function symbolIconUniformValues(
     functionType: string,
