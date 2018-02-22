@@ -26,17 +26,12 @@ function draw(painter: Painter, source: SourceCache, layer: FillExtrusionStyleLa
     if (painter.renderPass === 'offscreen') {
         drawToExtrusionFramebuffer(painter, layer);
 
-        for (const coord of coords) {
-            const tile = source.getTile(coord);
-            const bucket: ?FillExtrusionBucket = (tile.getBucket(layer): any);
-            if (!bucket) continue;
+        const depthMode = new DepthMode(painter.context.gl.LEQUAL, DepthMode.ReadWrite, [0, 1]),
+            stencilMode = StencilMode.disabled,
+            colorMode = painter.colorModeForRenderPass();
 
-            const depthMode = new DepthMode(painter.context.gl.LEQUAL, DepthMode.ReadWrite, [0, 1]),
-                stencilMode = StencilMode.disabled,
-                colorMode = painter.colorModeForRenderPass();
+        drawExtrusionTiles(painter, source, layer, coords, depthMode, stencilMode, colorMode);
 
-            drawExtrusion(painter, source, layer, tile, coord, bucket, depthMode, stencilMode, colorMode);
-        }
     } else if (painter.renderPass === 'translucent') {
         drawExtrusionTexture(painter, layer);
     }
@@ -89,29 +84,39 @@ function drawExtrusionTexture(painter, layer) {
         painter.viewportSegments, layer.paint, painter.transform.zoom);
 }
 
-function drawExtrusion(painter, source, layer, tile, coord, bucket, depthMode, stencilMode, colorMode) {
+function drawExtrusionTiles(painter, source, layer, coords, depthMode, stencilMode, colorMode) {
     const context = painter.context;
     const gl = context.gl;
 
-    const programConfiguration = bucket.programConfigurations.get(layer.id);
-
     const image = layer.paint.get('fill-extrusion-pattern');
-    if (image && painter.isPatternMissing(image)) return;
+    if (image) {
+        if (painter.isPatternMissing(image)) return;
 
-    const program = painter.useProgram(image ? 'fillExtrusionPattern' : 'fillExtrusion', programConfiguration);
+        context.activeTexture.set(gl.TEXTURE0);
+        painter.imageManager.bind(context);
+    }
 
-    const matrix = painter.translatePosMatrix(
-        coord.posMatrix,
-        tile,
-        layer.paint.get('fill-extrusion-translate'),
-        layer.paint.get('fill-extrusion-translate-anchor'));
+    for (const coord of coords) {
+        const tile = source.getTile(coord);
+        const bucket: ?FillExtrusionBucket = (tile.getBucket(layer): any);
+        if (!bucket) continue;
 
-    const uniformValues = image ?
-        fillExtrusionPatternUniformValues(matrix, painter, coord, image, tile) :
-        fillExtrusionUniformValues(matrix, painter);
+        const programConfiguration = bucket.programConfigurations.get(layer.id);
+        const program = painter.useProgram(image ? 'fillExtrusionPattern' : 'fillExtrusion', programConfiguration);
 
-    program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode,
-        uniformValues, layer.id, bucket.layoutVertexBuffer, bucket.indexBuffer,
-        bucket.segments, layer.paint, painter.transform.zoom,
-        programConfiguration);
+        const matrix = painter.translatePosMatrix(
+            coord.posMatrix,
+            tile,
+            layer.paint.get('fill-extrusion-translate'),
+            layer.paint.get('fill-extrusion-translate-anchor'));
+
+        const uniformValues = image ?
+            fillExtrusionPatternUniformValues(matrix, painter, coord, image, tile) :
+            fillExtrusionUniformValues(matrix, painter);
+
+        program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode,
+            uniformValues, layer.id, bucket.layoutVertexBuffer, bucket.indexBuffer,
+            bucket.segments, layer.paint, painter.transform.zoom,
+            programConfiguration);
+    }
 }

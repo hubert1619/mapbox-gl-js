@@ -37,6 +37,11 @@ function drawBackground(painter: Painter, sourceCache: SourceCache, layer: Backg
 
     const tileIDs = transform.coveringTiles({tileSize});
 
+    if (image) {
+        context.activeTexture.set(gl.TEXTURE0);
+        painter.imageManager.bind(painter.context);
+    }
+
     for (const tileID of tileIDs) {
         const matrix = painter.transform.calculatePosMatrix(tileID.toUnwrapped());
 

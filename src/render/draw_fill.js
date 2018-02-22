@@ -36,7 +36,7 @@ function drawFill(painter: Painter, sourceCache: SourceCache, layer: FillStyleLa
     if (painter.renderPass === pass) {
         const depthMode = painter.depthModeForSublayer(
             1, painter.renderPass === 'opaque' ? DepthMode.ReadWrite : DepthMode.ReadOnly);
-        drawFillTiles(painter, sourceCache, layer, coords, depthMode, colorMode, true);
+        drawFillTiles(painter, sourceCache, layer, coords, depthMode, colorMode, false);
     }
 
     // Draw stroke
@@ -53,11 +53,11 @@ function drawFill(painter: Painter, sourceCache: SourceCache, layer: FillStyleLa
         // the (non-antialiased) fill.
         const depthMode = painter.depthModeForSublayer(
             layer.getPaintProperty('fill-outline-color') ? 2 : 0, DepthMode.ReadOnly);
-        drawFillTiles(painter, sourceCache, layer, coords, depthMode, colorMode, false);
+        drawFillTiles(painter, sourceCache, layer, coords, depthMode, colorMode, true);
     }
 }
 
-function drawFillTiles(painter, sourceCache, layer, coords, depthMode, colorMode, fillTiles) {
+function drawFillTiles(painter, sourceCache, layer, coords, depthMode, colorMode, isOutline) {
     const gl = painter.context.gl;
 
     const image = layer.paint.get('fill-pattern');
@@ -65,12 +65,17 @@ function drawFillTiles(painter, sourceCache, layer, coords, depthMode, colorMode
 
     let drawMode, programName, uniformValues, indexBuffer, segments;
 
-    if (fillTiles) {
+    if (!isOutline) {
         programName = image ? 'fillPattern' : 'fill';
         drawMode = gl.TRIANGLES;
     } else {
         programName = image && !layer.getPaintProperty('fill-outline-color') ? 'fillOutlinePattern' : 'fillOutline';
         drawMode = gl.LINES;
+    }
+
+    if (image) {
+        painter.context.activeTexture.set(gl.TEXTURE0);
+        painter.imageManager.bind(painter.context);
     }
 
     for (const coord of coords) {
@@ -84,7 +89,7 @@ function drawFillTiles(painter, sourceCache, layer, coords, depthMode, colorMode
         const tileMatrix = painter.translatePosMatrix(coord.posMatrix, tile,
             layer.paint.get('fill-translate'), layer.paint.get('fill-translate-anchor'));
 
-        if (fillTiles) {
+        if (!isOutline) {
             indexBuffer = bucket.indexBuffer;
             segments = bucket.segments;
             uniformValues = image ?

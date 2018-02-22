@@ -1,12 +1,11 @@
 // @flow
 
-const {patternUniforms} = require('./pattern');
+const {patternUniforms, patternUniformValues} = require('./pattern');
 const {
     Uniform2fv,
     UniformMatrix4fv,
     Uniforms
 } = require('../uniform_binding');
-const pattern = require('./pattern');
 const util = require('../../util/util');
 
 import type Painter from '../painter';
@@ -51,8 +50,7 @@ function fillPatternUniformValues(
     tile: {tileID: OverscaledTileID, tileSize: number}
 ): UniformValues {
     return util.extend(fillUniformValues(matrix),
-        pattern.prepare(image, painter),
-        pattern.setTile(tile, painter));
+        patternUniformValues(image, painter, tile));
 }
 
 function fillOutlineUniformValues(

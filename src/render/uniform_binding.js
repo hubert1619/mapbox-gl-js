@@ -8,7 +8,6 @@ import type Context from '../gl/context';
 export interface UniformInterface<T> {
     context: Context;
     set(location: WebGLUniformLocation, value: T): void;
-    _set(location: WebGLUniformLocation, value: T): void;
 }
 
 export type UniformValues = {[string]: number | Array<number> | Float32Array};

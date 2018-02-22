@@ -1,6 +1,6 @@
 // @flow
 
-const {patternUniforms} = require('./pattern');
+const {patternUniforms, patternUniformValues} = require('./pattern');
 const {
     Uniform1i,
     Uniform1f,
@@ -14,7 +14,6 @@ const glMatrix = require('@mapbox/gl-matrix');
 const mat3 = glMatrix.mat3;
 const vec3 = glMatrix.vec3;
 const mat4 = glMatrix.mat4;
-const pattern = require('./pattern');
 const util = require('../../util/util');
 
 import type Context from '../../gl/context';
@@ -81,8 +80,7 @@ function fillExtrusionPatternUniformValues(
     tile: {tileID: OverscaledTileID, tileSize: number}
 ): UniformValues {
     return util.extend(fillExtrusionUniformValues(matrix, painter),
-        pattern.prepare(image, painter),
-        pattern.setTile(tile, painter),
+        patternUniformValues(image, painter, tile),
         {
             'u_height_factor': -Math.pow(2, coord.overscaledZ) / tile.tileSize / 8
         });
