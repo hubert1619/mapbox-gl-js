@@ -1,9 +1,10 @@
 // @flow
 
-const {Event} = require('../util/evented');
-const DOM = require('../util/dom');
-const Point = require('@mapbox/point-geometry');
-const util = require('../util/util');
+import { Event } from '../util/evented';
+
+import DOM from '../util/dom';
+import Point from '@mapbox/point-geometry';
+import util from '../util/util';
 
 import type Map from './map';
 import type LngLat from '../geo/lng_lat';
@@ -727,7 +728,10 @@ export type MapEvent =
      */
     | 'style.load';
 
-module.exports = {
-    MapMouseEvent,
-    MapTouchEvent
+const exported = {
+ MapMouseEvent,
+ MapTouchEvent
 };
+
+export default exported;
+export { MapMouseEvent, MapTouchEvent };
