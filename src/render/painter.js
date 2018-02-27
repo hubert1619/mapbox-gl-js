@@ -99,7 +99,7 @@ class Painter {
     currentLayer: number;
     id: string;
     _showOverdrawInspector: boolean;
-    cache: { [string]: Program };
+    cache: { [string]: Program<*> };
     crossTileSymbolIndex: CrossTileSymbolIndex;
     symbolFadeChange: number;
 
@@ -481,7 +481,7 @@ class Painter {
         return !imagePosA || !imagePosB;
     }
 
-    _createProgramCached(name: string, programConfiguration: ProgramConfiguration): Program {
+    _createProgramCached(name: string, programConfiguration: ProgramConfiguration): Program<any> {
         this.cache = this.cache || {};
         const key = `${name}${programConfiguration.cacheKey || ''}${this._showOverdrawInspector ? '/overdraw' : ''}`;
         if (!this.cache[key]) {
@@ -490,7 +490,7 @@ class Painter {
         return this.cache[key];
     }
 
-    useProgram(name: string, programConfiguration?: ProgramConfiguration): Program {
+    useProgram(name: string, programConfiguration?: ProgramConfiguration): Program<any> {
         const nextProgram = this._createProgramCached(name, programConfiguration || this.emptyProgramConfiguration);
 
         this.context.program.set(nextProgram.program);

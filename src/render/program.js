@@ -13,26 +13,26 @@ import type IndexBuffer from '../gl/index_buffer';
 import type DepthMode from '../gl/depth_mode';
 import type StencilMode from '../gl/stencil_mode';
 import type ColorMode from '../gl/color_mode';
-import type {Uniforms, UniformValues, UniformLocations} from './uniform_binding';
+import type {Uniforms, UniformBindings, UniformValues, UniformLocations, BinderUniformTypes} from './uniform_binding';
 
 export type DrawMode =
     | $PropertyType<WebGLRenderingContext, 'LINES'>
     | $PropertyType<WebGLRenderingContext, 'TRIANGLES'>
     | $PropertyType<WebGLRenderingContext, 'LINE_STRIP'>;
 
-class Program {
+class Program<Us: UniformBindings> {
     program: WebGLProgram;
     uniforms: UniformLocations;
     attributes: {[string]: number};
     numAttributes: number;
-    fixedUniforms: Uniforms;
-    binderUniforms: Uniforms;
+    fixedUniforms: Uniforms<Us>;
+    binderUniforms: Uniforms<BinderUniformTypes>;
     configuration: ProgramConfiguration;
 
     constructor(context: Context,
                 source: {fragmentSource: string, vertexSource: string},
                 configuration: ProgramConfiguration,
-                fixedUniforms: (Context) => Uniforms,
+                fixedUniforms: (Context) => Uniforms<Us>,
                 showOverdrawInspector: boolean) {
         const gl = context.gl;
         this.program = gl.createProgram();
@@ -99,7 +99,7 @@ class Program {
          depthMode: $ReadOnly<DepthMode>,
          stencilMode: $ReadOnly<StencilMode>,
          colorMode: $ReadOnly<ColorMode>,
-         uniformValues: UniformValues,
+         uniformValues: UniformValues<Us>,
          layerID: string,
          layoutVertexBuffer: VertexBuffer,
          indexBuffer: IndexBuffer,

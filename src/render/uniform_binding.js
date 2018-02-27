@@ -1,7 +1,6 @@
 // @flow
 
 const assert = require('assert');
-const util = require('../util/util');
 
 import type Context from '../gl/context';
 
@@ -10,8 +9,13 @@ export interface UniformInterface<T> {
     set(location: WebGLUniformLocation, value: T): void;
 }
 
-export type UniformValues = {[string]: number | Array<number> | Float32Array};
+export type UniformValue = number | Array<number> | Float32Array;
+export type UniformValues<Us: Object>
+    = $Exact<$ObjMap<Us, <V>(u: Uniform<V>) => UniformValue>>;
 export type UniformLocations = {[string]: WebGLUniformLocation};
+export type UniformBindings = {[string]: any};
+// binder uniforms are dynamically created:
+export type BinderUniformTypes = any;
 
 class Uniform<T> {
     context: Context;
@@ -81,23 +85,18 @@ class UniformMatrix4fv extends Uniform<Float32Array> implements UniformInterface
     }
 }
 
-class Uniforms {
-    bindings: Object;
+class Uniforms<Us: UniformBindings> {
+    bindings: Us;
 
-    constructor(bindings: Object) {
+    constructor(bindings: Us) {
         this.bindings = bindings;
     }
 
-    set(uniformLocations: UniformLocations, uniformValues: UniformValues) {
+    set(uniformLocations: UniformLocations, uniformValues: UniformValues<Us>) {
         for (const name in uniformValues) {
             assert(this.bindings[name], `No binding with name ${name}`);
             this.bindings[name].set(uniformLocations[name], uniformValues[name]);
         }
-    }
-
-    concatenate(otherUniforms: Uniforms) {      // review: check copying overhead -- maybe not
-        this.bindings = util.extend(this.bindings, otherUniforms.bindings);
-        return this;
     }
 }
 

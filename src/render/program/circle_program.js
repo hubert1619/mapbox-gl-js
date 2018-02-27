@@ -16,22 +16,28 @@ import type Tile from '../../source/tile';
 import type CircleStyleLayer from '../../style/style_layer/circle_style_layer';
 import type Painter from '../painter';
 
-function circleUniforms(context: Context): Uniforms {
-    return new Uniforms({
-        'u_camera_to_center_distance': new Uniform1f(context),
-        'u_scale_with_map': new Uniform1i(context),
-        'u_pitch_with_map': new Uniform1i(context),
-        'u_extrude_scale': new Uniform2fv(context),
-        'u_matrix': new UniformMatrix4fv(context)
-    });
-}
+export type CircleUniformsType = {|
+    'u_camera_to_center_distance': Uniform1f,
+    'u_scale_with_map': Uniform1i,
+    'u_pitch_with_map': Uniform1i,
+    'u_extrude_scale': Uniform2fv,
+    'u_matrix': UniformMatrix4fv
+|};
 
-function circleUniformValues(
+const circleUniforms = (context: Context): Uniforms<CircleUniformsType> => new Uniforms({
+    'u_camera_to_center_distance': new Uniform1f(context),
+    'u_scale_with_map': new Uniform1i(context),
+    'u_pitch_with_map': new Uniform1i(context),
+    'u_extrude_scale': new Uniform2fv(context),
+    'u_matrix': new UniformMatrix4fv(context)
+});
+
+const circleUniformValues = (
     painter: Painter,
     coord: OverscaledTileID,
     tile: Tile,
     layer: CircleStyleLayer
-): UniformValues {
+): UniformValues<CircleUniformsType> => {
     const transform = painter.transform;
 
     let pitchWithMap, extrudeScale;
@@ -55,6 +61,6 @@ function circleUniformValues(
         'u_pitch_with_map': +(pitchWithMap),
         'u_extrude_scale': extrudeScale
     };
-}
+};
 
 module.exports = { circleUniforms, circleUniformValues };

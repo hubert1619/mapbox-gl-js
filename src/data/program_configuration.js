@@ -19,7 +19,7 @@ import type {StructArray, StructArrayMember} from '../util/struct_array';
 import type VertexBuffer from '../gl/vertex_buffer';
 import type {Feature, SourceExpression, CompositeExpression} from '../style-spec/expression';
 import type {PossiblyEvaluated} from '../style/properties';
-import type {UniformValues} from '../render/uniform_binding';
+import type {BinderUniformTypes} from '../render/uniform_binding';
 
 function packColor(color: Color): [number, number] {
     return [
@@ -333,7 +333,7 @@ class ProgramConfiguration {
         return this._buffers;
     }
 
-    getUniformBindings(context: Context): Uniforms {
+    getUniformBindings(context: Context): Uniforms<BinderUniformTypes> {
         const uniformBindings = {};
         for (const property in this.binders) {
             const binder = this.binders[property];
@@ -347,7 +347,7 @@ class ProgramConfiguration {
         return new Uniforms(uniformBindings);
     }
 
-    getUniforms<Properties: Object>(properties: PossiblyEvaluated<Properties>, globals: GlobalProperties): UniformValues {
+    getUniforms<Properties: Object>(properties: PossiblyEvaluated<Properties>, globals: GlobalProperties) {
         const uniformValues = {};
         for (const property in this.binders) {
             const binder = this.binders[property];

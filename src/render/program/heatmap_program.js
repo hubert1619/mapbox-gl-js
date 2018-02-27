@@ -16,43 +16,51 @@ import type {UniformValues} from '../uniform_binding';
 import type Painter from '../painter';
 import type HeatmapStyleLayer from '../../style/style_layer/heatmap_style_layer';
 
-function heatmapUniforms(context: Context): Uniforms {
-    return new Uniforms({
-        'u_extrude_scale': new Uniform1f(context),
-        'u_intensity': new Uniform1f(context),
-        'u_matrix': new UniformMatrix4fv(context)
-    });
-}
+export type HeatmapUniformsType = {|
+    'u_extrude_scale': Uniform1f,
+    'u_intensity': Uniform1f,
+    'u_matrix': UniformMatrix4fv
+|};
 
-function heatmapTextureUniforms(context: Context): Uniforms {
-    return new Uniforms({
-        'u_matrix': new UniformMatrix4fv(context),
-        'u_world': new Uniform2fv(context),
-        'u_image': new Uniform1i(context),
-        'u_color_ramp': new Uniform1i(context),
-        'u_opacity': new Uniform1f(context)
-    });
-}
+export type HeatmapTextureUniformsType = {|
+    'u_matrix': UniformMatrix4fv,
+    'u_world': Uniform2fv,
+    'u_image': Uniform1i,
+    'u_color_ramp': Uniform1i,
+    'u_opacity': Uniform1f
+|};
 
-function heatmapUniformValues(
+const heatmapUniforms = (context: Context): Uniforms<HeatmapUniformsType> => new Uniforms({
+    'u_extrude_scale': new Uniform1f(context),
+    'u_intensity': new Uniform1f(context),
+    'u_matrix': new UniformMatrix4fv(context)
+});
+
+const heatmapTextureUniforms = (context: Context): Uniforms<HeatmapTextureUniformsType> => new Uniforms({
+    'u_matrix': new UniformMatrix4fv(context),
+    'u_world': new Uniform2fv(context),
+    'u_image': new Uniform1i(context),
+    'u_color_ramp': new Uniform1i(context),
+    'u_opacity': new Uniform1f(context)
+});
+
+const heatmapUniformValues = (
     matrix: Float32Array,
     tile: Tile,
     zoom: number,
     intensity: number
-): UniformValues {
-    return {
-        'u_matrix': matrix,
-        'u_extrude_scale': pixelsToTileUnits(tile, 1, zoom),
-        'u_intensity': intensity
-    };
-}
+): UniformValues<HeatmapUniformsType> => ({
+    'u_matrix': matrix,
+    'u_extrude_scale': pixelsToTileUnits(tile, 1, zoom),
+    'u_intensity': intensity
+});
 
-function heatmapTextureUniformValues(
+const heatmapTextureUniformValues = (
     painter: Painter,
     layer: HeatmapStyleLayer,
     textureUnit: number,
     colorRampUnit: number
-): UniformValues {
+): UniformValues<HeatmapTextureUniformsType> => {
     const matrix = mat4.create();
     mat4.ortho(matrix, 0, painter.width, painter.height, 0, 0, 1);
 
@@ -65,7 +73,7 @@ function heatmapTextureUniformValues(
         'u_color_ramp': colorRampUnit,
         'u_opacity': layer.paint.get('heatmap-opacity')
     };
-}
+};
 
 module.exports = {
     heatmapUniforms,

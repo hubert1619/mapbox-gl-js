@@ -19,33 +19,47 @@ import type Painter from '../painter';
 import type HillshadeStyleLayer from '../../style/style_layer/hillshade_style_layer';
 import type {OverscaledTileID} from '../../source/tile_id';
 
-function hillshadeUniforms(context: Context): Uniforms {
-    return new Uniforms({
-        'u_matrix': new UniformMatrix4fv(context),
-        'u_image': new Uniform1i(context),
-        'u_latrange': new Uniform2fv(context),
-        'u_light': new Uniform2fv(context),
-        'u_shadow': new Uniform4fv(context),
-        'u_highlight': new Uniform4fv(context),
-        'u_accent': new Uniform4fv(context)
-    });
-}
+export type HillshadeUniformsType = {|
+    'u_matrix': UniformMatrix4fv,
+    'u_image': Uniform1i,
+    'u_latrange': Uniform2fv,
+    'u_light': Uniform2fv,
+    'u_shadow': Uniform4fv,
+    'u_highlight': Uniform4fv,
+    'u_accent': Uniform4fv
+|};
 
-function hillshadePrepareUniforms(context: Context): Uniforms {
-    return new Uniforms({
-        'u_matrix': new UniformMatrix4fv(context),
-        'u_image': new Uniform1i(context),
-        'u_dimension': new Uniform2fv(context),
-        'u_zoom': new Uniform1f(context),
-        'u_maxzoom': new Uniform1f(context)
-    });
-}
+export type HillshadePrepareUniformsType = {|
+    'u_matrix': UniformMatrix4fv,
+    'u_image': Uniform1i,
+    'u_dimension': Uniform2fv,
+    'u_zoom': Uniform1f,
+    'u_maxzoom': Uniform1f
+|};
 
-function hillshadeUniformValues(
+const hillshadeUniforms = (context: Context): Uniforms<HillshadeUniformsType> => new Uniforms({
+    'u_matrix': new UniformMatrix4fv(context),
+    'u_image': new Uniform1i(context),
+    'u_latrange': new Uniform2fv(context),
+    'u_light': new Uniform2fv(context),
+    'u_shadow': new Uniform4fv(context),
+    'u_highlight': new Uniform4fv(context),
+    'u_accent': new Uniform4fv(context)
+});
+
+const hillshadePrepareUniforms = (context: Context): Uniforms<HillshadePrepareUniformsType> => new Uniforms({
+    'u_matrix': new UniformMatrix4fv(context),
+    'u_image': new Uniform1i(context),
+    'u_dimension': new Uniform2fv(context),
+    'u_zoom': new Uniform1f(context),
+    'u_maxzoom': new Uniform1f(context)
+});
+
+const hillshadeUniformValues = (
     painter: Painter,
     tile: Tile,
     layer: HillshadeStyleLayer
-): UniformValues {
+): UniformValues<HillshadeUniformsType> => {
     const shadow = layer.paint.get("hillshade-shadow-color");
     const highlight = layer.paint.get("hillshade-highlight-color");
     const accent = layer.paint.get("hillshade-accent-color");
@@ -67,9 +81,9 @@ function hillshadeUniformValues(
     };
 }
 
-function hillshadeUniformPrepareValues(
+const hillshadeUniformPrepareValues = (
     tile: {dem: any, tileID: OverscaledTileID}, maxzoom: number
-): UniformValues {
+): UniformValues<HillshadePrepareUniformsType> => {
     const tileSize = tile.dem.level.dim;
     const matrix = mat4.create();
     // Flip rendering at y axis.
@@ -83,7 +97,7 @@ function hillshadeUniformPrepareValues(
         'u_zoom': tile.tileID.overscaledZ,
         'u_maxzoom': maxzoom
     };
-}
+};
 
 function getTileLatRange(painter: Painter, tileID: OverscaledTileID) {
     // for scaling the magnitude of a points slope by its latitude
@@ -94,7 +108,7 @@ function getTileLatRange(painter: Painter, tileID: OverscaledTileID) {
         painter.transform.coordinateLocation(coordinate0).lat,
         painter.transform.coordinateLocation(coordinate1).lat
     ];
-}
+};
 
 module.exports = {
     hillshadeUniforms,

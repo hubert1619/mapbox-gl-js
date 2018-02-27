@@ -19,47 +19,79 @@ import type {CrossFaded} from '../../style/cross_faded';
 import type LineStyleLayer from '../../style/style_layer/line_style_layer';
 import type Painter from '../painter';
 
-function lineUniforms(context: Context): Uniforms {
-    return new Uniforms({
-        'u_matrix': new UniformMatrix4fv(context),
-        'u_ratio': new Uniform1f(context),
-        'u_gl_units_to_pixels': new Uniform2fv(context)
-    });
-}
+export type LineUniformsType = {|
+    'u_matrix': UniformMatrix4fv,
+    'u_ratio': Uniform1f,
+    'u_gl_units_to_pixels': Uniform2fv
+|};
 
-function linePatternUniforms(context: Context): Uniforms {
-    return lineUniforms(context)
-        .concatenate(new Uniforms({
-            'u_pattern_size_a': new Uniform2fv(context),
-            'u_pattern_size_b': new Uniform2fv(context),
-            'u_texsize': new Uniform2fv(context),
-            'u_image': new Uniform1i(context),
-            'u_pattern_tl_a': new Uniform2fv(context),
-            'u_pattern_br_a': new Uniform2fv(context),
-            'u_pattern_tl_b': new Uniform2fv(context),
-            'u_pattern_br_b': new Uniform2fv(context),
-            'u_fade': new Uniform1f(context)
-        }));
-}
+export type LinePatternUniformsType = {|
+    'u_matrix': UniformMatrix4fv,
+    'u_ratio': Uniform1f,
+    'u_gl_units_to_pixels': Uniform2fv,
+    'u_pattern_size_a': Uniform2fv,
+    'u_pattern_size_b': Uniform2fv,
+    'u_texsize': Uniform2fv,
+    'u_image': Uniform1i,
+    'u_pattern_tl_a': Uniform2fv,
+    'u_pattern_br_a': Uniform2fv,
+    'u_pattern_tl_b': Uniform2fv,
+    'u_pattern_br_b': Uniform2fv,
+    'u_fade': Uniform1f
+|};
 
-function lineSDFUniforms(context: Context): Uniforms {
-    return lineUniforms(context)
-        .concatenate(new Uniforms({
-            'u_patternscale_a': new Uniform2fv(context),
-            'u_patternscale_b': new Uniform2fv(context),
-            'u_sdfgamma': new Uniform1f(context),
-            'u_image': new Uniform1i(context),
-            'u_tex_y_a': new Uniform1f(context),
-            'u_tex_y_b': new Uniform1f(context),
-            'u_mix': new Uniform1f(context)
-        }));
-}
+export type LineSDFUniformsType = {|
+    'u_matrix': UniformMatrix4fv,
+    'u_ratio': Uniform1f,
+    'u_gl_units_to_pixels': Uniform2fv,
+    'u_patternscale_a': Uniform2fv,
+    'u_patternscale_b': Uniform2fv,
+    'u_sdfgamma': Uniform1f,
+    'u_image': Uniform1i,
+    'u_tex_y_a': Uniform1f,
+    'u_tex_y_b': Uniform1f,
+    'u_mix': Uniform1f
+|};
 
-function lineUniformValues(
+const lineUniforms = (context: Context): Uniforms<LineUniformsType> => new Uniforms({
+    'u_matrix': new UniformMatrix4fv(context),
+    'u_ratio': new Uniform1f(context),
+    'u_gl_units_to_pixels': new Uniform2fv(context)
+});
+
+const linePatternUniforms = (context: Context): Uniforms<LinePatternUniformsType> => new Uniforms({
+    'u_matrix': new UniformMatrix4fv(context),
+    'u_ratio': new Uniform1f(context),
+    'u_gl_units_to_pixels': new Uniform2fv(context),
+    'u_pattern_size_a': new Uniform2fv(context),
+    'u_pattern_size_b': new Uniform2fv(context),
+    'u_texsize': new Uniform2fv(context),
+    'u_image': new Uniform1i(context),
+    'u_pattern_tl_a': new Uniform2fv(context),
+    'u_pattern_br_a': new Uniform2fv(context),
+    'u_pattern_tl_b': new Uniform2fv(context),
+    'u_pattern_br_b': new Uniform2fv(context),
+    'u_fade': new Uniform1f(context)
+});
+
+const lineSDFUniforms = (context: Context): Uniforms<LineSDFUniformsType> => new Uniforms({
+    'u_matrix': new UniformMatrix4fv(context),
+    'u_ratio': new Uniform1f(context),
+    'u_gl_units_to_pixels': new Uniform2fv(context),
+    'u_patternscale_a': new Uniform2fv(context),
+    'u_patternscale_b': new Uniform2fv(context),
+    'u_sdfgamma': new Uniform1f(context),
+    'u_image': new Uniform1i(context),
+    'u_tex_y_a': new Uniform1f(context),
+    'u_tex_y_b': new Uniform1f(context),
+    'u_mix': new Uniform1f(context)
+});
+
+const lineUniformValues = (
     painter: Painter,
     tile: Tile,
     layer: LineStyleLayer
-): UniformValues {
+): UniformValues<LineUniformsType> => {
     const transform = painter.transform;
 
     return {
@@ -70,14 +102,14 @@ function lineUniformValues(
             1 / transform.pixelsToGLUnits[1]
         ]
     };
-}
+};
 
-function linePatternUniformValues(
+const linePatternUniformValues = (
     painter: Painter,
     tile: Tile,
     layer: LineStyleLayer,
     image: CrossFaded<string>
-): UniformValues {
+): UniformValues<LinePatternUniformsType> => {
     const pixelSize = painter.imageManager.getPixelSize();
     const tileRatio = calculateTileRatio(tile, painter.transform);
 
@@ -101,14 +133,14 @@ function linePatternUniformValues(
         'u_pattern_br_b': imagePosB.br,
         'u_fade': image.t
     });
-}
+};
 
-function lineSDFUniformValues(
+const lineSDFUniformValues = (
     painter: Painter,
     tile: Tile,
     layer: LineStyleLayer,
     dasharray: CrossFaded<Array<number>>
-): UniformValues {
+): UniformValues<LineSDFUniformsType> => {
     const transform = painter.transform;
     const lineAtlas = painter.lineAtlas;
     const tileRatio = calculateTileRatio(tile, transform);
@@ -130,7 +162,7 @@ function lineSDFUniformValues(
         'u_tex_y_b': posB.y,
         'u_mix': dasharray.t
     });
-}
+};
 
 function calculateTileRatio(tile: Tile, transform: Transform) {
     return 1 / pixelsToTileUnits(tile, 1, transform.tileZoom);
